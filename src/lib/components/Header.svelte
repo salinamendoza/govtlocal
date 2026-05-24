@@ -31,12 +31,20 @@
       </div>
       <ModeToggle {mode} />
       {#if mode}
-        <a
-          href={submitHref}
-          class="inline-flex items-center justify-center rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          {submitLabel}
-        </a>
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:gap-2">
+          <a
+            href={submitHref}
+            class="inline-flex items-center justify-center rounded-lg bg-ink px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          >
+            {submitLabel}
+          </a>
+          <a
+            href="/report"
+            class="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:border-slate-300"
+          >
+            Report
+          </a>
+        </div>
       {/if}
     </div>
   </div>
