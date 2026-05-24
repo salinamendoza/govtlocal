@@ -22,7 +22,9 @@
 
   // Re-fill the textarea on validation failure so the paste isn't lost.
   const qaError = $derived(form?.quickAdd?.error);
-  const qaAdded = $derived(form?.quickAdd?.added);
+  const qaAdded = $derived(form?.quickAdd?.added ?? []);
+  const qaFailures = $derived(form?.quickAdd?.failures ?? []);
+  const qaIsBulk = $derived(form?.quickAdd?.bulk === true);
   const qaText = $derived(form?.quickAdd?.text ?? '');
   const qaKind = $derived(form?.quickAdd?.kind ?? 'resource');
 </script>
@@ -36,12 +38,31 @@
     in the form and drops it in the queue as pending.
   </p>
 
-  {#if qaAdded}
+  {#if qaAdded.length === 1 && !qaIsBulk}
     <p class="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-      Added "{qaAdded.title}" as pending.
-      <a href={`/admin/${qaAdded.id}`} class="font-medium underline">Edit</a>
+      Added "{qaAdded[0].title}" as pending.
+      <a href={`/admin/${qaAdded[0].id}`} class="font-medium underline">Edit</a>
       or scroll down to approve.
     </p>
+  {:else if qaAdded.length > 0}
+    <div class="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+      <p class="font-medium">Added {qaAdded.length} {qaAdded.length === 1 ? 'entry' : 'entries'} as pending:</p>
+      <ul class="mt-1 list-disc pl-5">
+        {#each qaAdded as a (a.id)}
+          <li><a href={`/admin/${a.id}`} class="underline">{a.title}</a></li>
+        {/each}
+      </ul>
+    </div>
+  {/if}
+  {#if qaFailures.length > 0}
+    <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+      <p class="font-medium">{qaFailures.length} entr{qaFailures.length === 1 ? 'y' : 'ies'} couldn't be parsed:</p>
+      <ul class="mt-1 list-disc pl-5">
+        {#each qaFailures as f}
+          <li><span class="font-mono text-xs">{f.source}</span> — {f.error}</li>
+        {/each}
+      </ul>
+    </div>
   {/if}
   {#if qaError}
     <p class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -63,9 +84,9 @@
     <textarea
       name="text"
       required
-      rows="3"
+      rows="4"
       maxlength="4000"
-      placeholder="e.g. Westside Community Center has a shower trailer open 8a-8p at 1234 Magnolia, Garden Grove. Call (714) 555-0123."
+      placeholder={`One entry: "Westside Community Center has a shower trailer open 8a-8p at 1234 Magnolia. Call (714) 555-0123."\n\nOr a list (bullets or blank lines) and each becomes its own entry:\nHotlines:\n- Garden Grove 24-hour call center: (714) 741-5444\n- OC public info hotline: (714) 628-7085`}
       class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm"
     >{qaText}</textarea>
     <button

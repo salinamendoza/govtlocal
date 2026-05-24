@@ -9,6 +9,38 @@ const VALID_STATUS: readonly (EntryStatus | 'all')[] = [
   'pending', 'approved', 'rejected', 'archived', 'all'
 ];
 
+const MAX_BULK_ITEMS = 20;
+const BULLET_RE = /^\s*(?:[-*•]|\d+[.)])\s+(.*)$/;
+
+/**
+ * Split a paste into 1+ individual entries.
+ * - Bullets (-, *, •, "1.", "1)") become separate items; any non-bullet
+ *   preamble (e.g. "Hotlines:") is prepended to each so the AI keeps
+ *   context.
+ * - Otherwise, blocks separated by blank lines become items.
+ * - Otherwise, the whole text is a single item.
+ */
+function splitBulkPaste(text: string): string[] {
+  const lines = text.split(/\r?\n/);
+  const bullets: string[] = [];
+  const preamble: string[] = [];
+  for (const line of lines) {
+    const m = line.match(BULLET_RE);
+    if (m) {
+      bullets.push(m[1].trim());
+    } else if (bullets.length === 0 && line.trim().length > 0) {
+      preamble.push(line.trim());
+    }
+  }
+  if (bullets.length >= 2) {
+    const prefix = preamble.join(' ').replace(/[:\-—]\s*$/, '').trim();
+    return bullets.map((b) => (prefix ? `${prefix}: ${b}` : b));
+  }
+  const blocks = text.split(/\n\s*\n+/).map((b) => b.trim()).filter(Boolean);
+  if (blocks.length >= 2) return blocks;
+  return [text.trim()];
+}
+
 export const load: PageServerLoad = async ({ url, platform }) => {
   const db = getDB(platform);
   const rawKind = url.searchParams.get('kind');
@@ -86,12 +118,49 @@ export const actions: Actions = {
       });
     }
 
-    const result = await quickAdd(platform.env.AI, kind, text);
-    if (!result.ok) {
-      return fail(400, { quickAdd: { error: result.error, text, kind } });
+    const items = splitBulkPaste(text);
+    if (items.length > MAX_BULK_ITEMS) {
+      return fail(400, {
+        quickAdd: {
+          error: `That looks like ${items.length} entries — please paste in batches of ${MAX_BULK_ITEMS} or fewer.`,
+          text,
+          kind
+        }
+      });
     }
 
-    const entry = await createEntry(db, result.entry);
-    return { quickAdd: { added: { id: entry.id, title: entry.title, kind } } };
+    // Single-entry path (most common). Preserves the original UX where
+    // the success message links straight to the new entry's edit page.
+    if (items.length === 1) {
+      const result = await quickAdd(platform.env.AI, kind, items[0]);
+      if (!result.ok) {
+        return fail(400, { quickAdd: { error: result.error, text, kind } });
+      }
+      const entry = await createEntry(db, result.entry);
+      return { quickAdd: { added: [{ id: entry.id, title: entry.title }], kind } };
+    }
+
+    // Bulk path. Run AI calls in parallel — small N, safe under any
+    // reasonable Workers AI rate cap.
+    const results = await Promise.all(
+      items.map((it) => quickAdd(platform.env.AI!, kind, it))
+    );
+
+    const added: { id: string; title: string }[] = [];
+    const failures: { source: string; error: string }[] = [];
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.ok) {
+        const entry = await createEntry(db, r.entry);
+        added.push({ id: entry.id, title: entry.title });
+      } else {
+        failures.push({
+          source: items[i].slice(0, 80),
+          error: r.error
+        });
+      }
+    }
+
+    return { quickAdd: { added, failures, kind, bulk: true } };
   }
 };

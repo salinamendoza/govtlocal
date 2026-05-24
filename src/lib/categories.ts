@@ -1,6 +1,7 @@
 export const RESOURCE_CATEGORIES = [
   'Shelter',
   'Food',
+  'Hotline',
   'Grants',
   'Loans',
   'Medical',
