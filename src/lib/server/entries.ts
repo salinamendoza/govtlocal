@@ -5,14 +5,38 @@ import type {
   EntryInput,
   EntryStatus,
   ListEntriesOptions,
-  ListResult,
-  PublicEntry
+  ListResult
 } from '$lib/types';
+import type { CapacityStatus } from '$lib/capacity';
+import { isValidCapacity } from '$lib/capacity';
+import { parseServices, serializeServices, type ServiceTag } from '$lib/services';
 import { buildFtsQuery, escapeLike, now } from './db';
 import { bumpSnapshotVersion } from './snapshot';
 
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 100;
+
+const ENTRY_COLS = `
+  id, kind, category, title, description, url, phone, address, city, zip,
+  contact_name, contact_email, status, capacity_status, services,
+  created_at, updated_at, approved_at
+`;
+
+interface RawEntry extends Omit<Entry, 'services' | 'capacity_status'> {
+  services: string;
+  capacity_status: string;
+}
+
+/** Convert a raw D1 row into a typed Entry. */
+export function hydrateEntry(row: RawEntry): Entry {
+  return {
+    ...row,
+    capacity_status: isValidCapacity(row.capacity_status)
+      ? (row.capacity_status as CapacityStatus)
+      : 'unknown',
+    services: parseServices(row.services)
+  };
+}
 
 function normalize(raw: string | null | undefined): string | null {
   if (raw === undefined || raw === null) return null;
@@ -45,7 +69,13 @@ export async function listEntries(
     params.push(opts.category);
   }
 
-  let sql: string;
+  if (opts.service) {
+    // services is stored as JSON like ["Meals","Showers"]; LIKE on the
+    // quoted tag finds exact matches without false positives on prefixes.
+    where.push(`e.services LIKE ? ESCAPE '\\'`);
+    params.push(`%"${escapeLike(opts.service)}"%`);
+  }
+
   if (useFts) {
     const ftsQuery = buildFtsQuery(q);
     if (ftsQuery) {
@@ -63,8 +93,8 @@ export async function listEntries(
     params.push(opts.cursor);
   }
 
-  sql = `
-    SELECT e.* FROM entries e
+  const sql = `
+    SELECT ${ENTRY_COLS} FROM entries e
     WHERE ${where.join(' AND ')}
     ORDER BY e.created_at DESC
     LIMIT ?
@@ -74,9 +104,9 @@ export async function listEntries(
   const res = await db
     .prepare(sql)
     .bind(...params)
-    .all<Entry>();
+    .all<RawEntry>();
 
-  const rows = res.results ?? [];
+  const rows = (res.results ?? []).map(hydrateEntry);
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
   const nextCursor = hasMore ? items[items.length - 1].created_at : null;
@@ -90,12 +120,13 @@ export async function getEntry(
   opts: { includeUnapproved?: boolean } = {}
 ): Promise<Entry | null> {
   const row = await db
-    .prepare('SELECT * FROM entries WHERE id = ?')
+    .prepare(`SELECT ${ENTRY_COLS} FROM entries WHERE id = ?`)
     .bind(id)
-    .first<Entry>();
+    .first<RawEntry>();
   if (!row) return null;
-  if (!opts.includeUnapproved && row.status !== 'approved') return null;
-  return row;
+  const hydrated = hydrateEntry(row);
+  if (!opts.includeUnapproved && hydrated.status !== 'approved') return null;
+  return hydrated;
 }
 
 export async function createEntry(
@@ -104,6 +135,9 @@ export async function createEntry(
 ): Promise<Entry> {
   const id = nanoid(12);
   const t = now();
+
+  const capacity: CapacityStatus = input.capacity_status ?? 'unknown';
+  const servicesJson = serializeServices(input.services ?? []);
 
   const entry: Entry = {
     id,
@@ -119,6 +153,8 @@ export async function createEntry(
     contact_name: normalize(input.contact_name),
     contact_email: normalize(input.contact_email),
     status: 'pending',
+    capacity_status: capacity,
+    services: parseServices(servicesJson),
     created_at: t,
     updated_at: t,
     approved_at: null
@@ -128,9 +164,9 @@ export async function createEntry(
     .prepare(
       `INSERT INTO entries (
         id, kind, category, title, description, url, phone, address, city, zip,
-        contact_name, contact_email, status,
+        contact_name, contact_email, status, capacity_status, services,
         created_at, updated_at, approved_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     )
     .bind(
       entry.id,
@@ -146,6 +182,8 @@ export async function createEntry(
       entry.contact_name,
       entry.contact_email,
       entry.status,
+      entry.capacity_status,
+      servicesJson,
       entry.created_at,
       entry.updated_at,
       entry.approved_at
@@ -155,7 +193,7 @@ export async function createEntry(
   return entry;
 }
 
-const UPDATABLE_FIELDS = [
+const UPDATABLE_STRING_FIELDS = [
   'category',
   'title',
   'description',
@@ -168,7 +206,7 @@ const UPDATABLE_FIELDS = [
   'contact_email'
 ] as const;
 
-type UpdatableField = (typeof UPDATABLE_FIELDS)[number];
+type UpdatableStringField = (typeof UPDATABLE_STRING_FIELDS)[number];
 
 export interface UpdateInput {
   category?: string;
@@ -182,6 +220,8 @@ export interface UpdateInput {
   contact_name?: string | null;
   contact_email?: string | null;
   status?: EntryStatus;
+  capacity_status?: CapacityStatus;
+  services?: ServiceTag[];
 }
 
 export async function updateEntry(
@@ -195,11 +235,21 @@ export async function updateEntry(
   const sets: string[] = [];
   const params: unknown[] = [];
 
-  for (const field of UPDATABLE_FIELDS) {
-    const v = input[field as UpdatableField];
+  for (const field of UPDATABLE_STRING_FIELDS) {
+    const v = input[field as UpdatableStringField];
     if (v === undefined) continue;
     sets.push(`${field} = ?`);
     params.push(typeof v === 'string' ? normalize(v) : v);
+  }
+
+  if (input.capacity_status !== undefined && isValidCapacity(input.capacity_status)) {
+    sets.push('capacity_status = ?');
+    params.push(input.capacity_status);
+  }
+
+  if (input.services !== undefined) {
+    sets.push('services = ?');
+    params.push(serializeServices(input.services));
   }
 
   if (input.status !== undefined) {

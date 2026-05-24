@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { PublicEntry } from '$lib/types';
+  import { CAPACITY_CHIP, CAPACITY_LABEL } from '$lib/capacity';
 
   interface Props {
     entry: PublicEntry;
@@ -9,6 +10,11 @@
   const location = $derived(
     [entry.city, entry.zip].filter((x): x is string => Boolean(x)).join(' · ')
   );
+
+  const SERVICE_PREVIEW = 4;
+  const visibleServices = $derived(entry.services.slice(0, SERVICE_PREVIEW));
+  const extraServices = $derived(Math.max(0, entry.services.length - SERVICE_PREVIEW));
+  const showCapacity = $derived(entry.capacity_status !== 'unknown');
 </script>
 
 <article
@@ -23,7 +29,32 @@
     </span>
   </div>
 
+  {#if showCapacity}
+    <div>
+      <span
+        class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold {CAPACITY_CHIP[entry.capacity_status]}"
+      >
+        {CAPACITY_LABEL[entry.capacity_status]}
+      </span>
+    </div>
+  {/if}
+
   <p class="clamp-3 text-sm leading-relaxed text-slate-700">{entry.description}</p>
+
+  {#if entry.services.length > 0}
+    <ul class="flex flex-wrap gap-1.5">
+      {#each visibleServices as tag (tag)}
+        <li class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700">
+          {tag}
+        </li>
+      {/each}
+      {#if extraServices > 0}
+        <li class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-500">
+          +{extraServices} more
+        </li>
+      {/if}
+    </ul>
+  {/if}
 
   {#if location}
     <p class="text-xs font-medium uppercase tracking-wide text-slate-500">{location}</p>

@@ -2,6 +2,7 @@ import { fail, type Actions, type PageServerLoad } from '@sveltejs/kit';
 import { getDB } from '$lib/server/db';
 import { createEntry, listEntries, updateEntry, deleteEntry } from '$lib/server/entries';
 import { quickAdd } from '$lib/server/quickAdd';
+import { isValidCapacity, type CapacityStatus } from '$lib/capacity';
 import type { EntryStatus, Kind } from '$lib/types';
 
 const VALID_STATUS: readonly (EntryStatus | 'all')[] = [
@@ -53,6 +54,16 @@ export const actions: Actions = {
     const id = (await request.formData()).get('id') as string | null;
     if (!id) return fail(400, { error: 'missing id' });
     await deleteEntry(db, id);
+    return { ok: true };
+  },
+  setCapacity: async ({ request, platform }) => {
+    const db = getDB(platform);
+    const form = await request.formData();
+    const id = form.get('id') as string | null;
+    const cap = form.get('capacity_status') as string | null;
+    if (!id) return fail(400, { error: 'missing id' });
+    if (!isValidCapacity(cap)) return fail(400, { error: 'invalid capacity' });
+    await updateEntry(db, id, { capacity_status: cap as CapacityStatus });
     return { ok: true };
   },
   quickAdd: async ({ request, platform }) => {

@@ -1,5 +1,11 @@
 <script lang="ts">
   import type { PageData, ActionData } from './$types';
+  import {
+    USER_CAPACITY_STATUSES,
+    CAPACITY_LABEL,
+    CAPACITY_CHIP,
+    type CapacityStatus
+  } from '$lib/capacity';
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
   function fmt(t: number) {
@@ -107,6 +113,7 @@
       <tr>
         <th class="px-3 py-2">Title</th>
         <th class="px-3 py-2">Category</th>
+        <th class="px-3 py-2">Capacity</th>
         <th class="px-3 py-2">Location</th>
         <th class="px-3 py-2">Submitted</th>
         <th class="px-3 py-2">Status</th>
@@ -123,6 +130,24 @@
             <p class="mt-1 line-clamp-2 text-xs text-slate-500">{e.description}</p>
           </td>
           <td class="px-3 py-2 text-xs text-slate-600">{e.category}</td>
+          <td class="px-3 py-2 text-xs">
+            <form method="POST" action="?/setCapacity" class="inline-flex items-center gap-2">
+              <input type="hidden" name="id" value={e.id} />
+              <span class="inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-semibold {CAPACITY_CHIP[e.capacity_status]}">
+                {CAPACITY_LABEL[e.capacity_status]}
+              </span>
+              <select
+                name="capacity_status"
+                onchange={(ev) => (ev.currentTarget.form as HTMLFormElement).requestSubmit()}
+                class="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-xs"
+                aria-label="Set capacity"
+              >
+                {#each USER_CAPACITY_STATUSES as cap (cap)}
+                  <option value={cap} selected={e.capacity_status === cap}>{CAPACITY_LABEL[cap as CapacityStatus]}</option>
+                {/each}
+              </select>
+            </form>
+          </td>
           <td class="px-3 py-2 text-xs text-slate-600">
             {[e.city, e.zip].filter(Boolean).join(' · ') || '—'}
           </td>
@@ -155,7 +180,7 @@
           </td>
         </tr>
       {:else}
-        <tr><td colspan="6" class="px-3 py-8 text-center text-sm text-slate-500">Nothing here.</td></tr>
+        <tr><td colspan="7" class="px-3 py-8 text-center text-sm text-slate-500">Nothing here.</td></tr>
       {/each}
     </tbody>
   </table>

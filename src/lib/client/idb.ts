@@ -139,7 +139,9 @@ export async function queryEntries(opts: {
       return (
         e.title.toLowerCase().includes(q) ||
         e.description.toLowerCase().includes(q) ||
-        (e.city?.toLowerCase().includes(q) ?? false)
+        (e.city?.toLowerCase().includes(q) ?? false) ||
+        (Array.isArray(e.services) &&
+          e.services.some((s) => s.toLowerCase().includes(q)))
       );
     })
     .sort((a, b) => b.created_at - a.created_at);
