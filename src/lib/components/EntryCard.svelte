@@ -12,16 +12,22 @@
     [entry.city, entry.zip].filter((x): x is string => Boolean(x)).join(' · ')
   );
 
+  const hasStreet = $derived(Boolean(entry.address));
+
   /** Best display string for the address line. Prefers full street. */
   const displayAddress = $derived(
-    entry.address
+    hasStreet
       ? [entry.address, entry.city, entry.zip].filter((x): x is string => Boolean(x)).join(', ')
       : cityZip
   );
 
-  /** Universal maps deep link — iOS offers Apple Maps, Android Google Maps. */
+  /**
+   * Maps deep link — only when we actually have a street address.
+   * Searching maps for just "Garden Grove" centers on the whole city,
+   * useless to a user looking for a specific site.
+   */
   const mapsUrl = $derived(
-    displayAddress ? `https://maps.google.com/?q=${encodeURIComponent(displayAddress)}` : null
+    hasStreet ? `https://maps.google.com/?q=${encodeURIComponent(displayAddress)}` : null
   );
 
   const SERVICE_PREVIEW = 4;
@@ -52,7 +58,7 @@
     </div>
   {/if}
 
-  {#if displayAddress}
+  {#if hasStreet}
     <a
       href={mapsUrl}
       target="_blank"
@@ -65,15 +71,22 @@
         fill="currentColor"
         aria-hidden="true"
       >
-        <path
-          fill-rule="evenodd"
-          d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5.69l3.22 3.22a.75.75 0 101.06-1.06l-2.78-2.78V5z"
-          clip-rule="evenodd"
-        />
         <path d="M10 2a6 6 0 016 6c0 4.5-6 10-6 10S4 12.5 4 8a6 6 0 016-6zm0 8a2 2 0 100-4 2 2 0 000 4z" />
       </svg>
       <span class="leading-snug">{displayAddress}</span>
     </a>
+  {:else if cityZip}
+    <p class="flex items-start gap-2 text-sm text-slate-600">
+      <svg
+        class="mt-0.5 h-4 w-4 shrink-0 text-slate-400"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <path d="M10 2a6 6 0 016 6c0 4.5-6 10-6 10S4 12.5 4 8a6 6 0 016-6zm0 8a2 2 0 100-4 2 2 0 000 4z" />
+      </svg>
+      <span class="leading-snug">{cityZip}</span>
+    </p>
   {/if}
 
   <p class="clamp-3 text-sm leading-relaxed text-slate-700">{entry.description}</p>
