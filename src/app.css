@@ -1,0 +1,23 @@
+@import '@fontsource-variable/inter';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :focus-visible {
+    @apply outline-none ring-2 ring-ink ring-offset-2 ring-offset-page;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+@layer utilities {
+  .clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
