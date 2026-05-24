@@ -1,7 +1,8 @@
 import type { D1Database } from '@cloudflare/workers-types';
+import type { ReportStatus } from '$lib/reportTypes';
 
-export type ReportStatus = 'new' | 'triaged' | 'resolved' | 'dismissed';
-export const REPORT_STATUSES: readonly ReportStatus[] = ['new', 'triaged', 'resolved', 'dismissed'];
+export type { ReportStatus } from '$lib/reportTypes';
+export { REPORT_STATUSES } from '$lib/reportTypes';
 
 export interface ReportRow {
   id: string;

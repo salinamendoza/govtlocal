@@ -1,13 +1,10 @@
 import { nanoid } from 'nanoid';
 import type { D1Database } from '@cloudflare/workers-types';
 import { now } from './db';
+import type { HazardSeverity } from '$lib/hazards';
 
-export type HazardSeverity = 'evacuate' | 'shelter_in_place' | 'advisory';
-export const HAZARD_SEVERITIES: readonly HazardSeverity[] = [
-  'evacuate',
-  'shelter_in_place',
-  'advisory'
-];
+export type { HazardSeverity } from '$lib/hazards';
+export { HAZARD_SEVERITIES } from '$lib/hazards';
 
 export interface HazardRow {
   id: string;

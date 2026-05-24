@@ -20,9 +20,10 @@
  *   5. Turnstile token invalid? → 403
  */
 
+export { HONEYPOT_FIELD } from '$lib/honeypot';
+
 export const MAX_SUBMISSION_BYTES = 16 * 1024; // 16 KB
 export const MAX_REPORT_BYTES = 8 * 1024; // 8 KB per the reports server cap
-export const HONEYPOT_FIELD = 'website'; // hidden, label tells bots to fill it
 
 export function honeypotTripped(value: FormDataEntryValue | string | null | undefined): boolean {
   if (value === null || value === undefined) return false;

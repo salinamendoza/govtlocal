@@ -16,6 +16,7 @@
     {/if}
     <label class="flex flex-col gap-1 text-sm">
       <span class="font-medium text-ink">Password</span>
+      <!-- svelte-ignore a11y_autofocus -->
       <input
         type="password"
         name="password"
