@@ -14,5 +14,4 @@
   kind="donation"
   categories={DONATION_CATEGORIES}
   initialItems={data.items}
-  initialNextCursor={data.nextCursor}
 />

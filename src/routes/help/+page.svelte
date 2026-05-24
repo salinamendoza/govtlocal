@@ -14,5 +14,4 @@
   kind="resource"
   categories={RESOURCE_CATEGORIES}
   initialItems={data.items}
-  initialNextCursor={data.nextCursor}
 />

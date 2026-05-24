@@ -9,6 +9,7 @@ import type {
   PublicEntry
 } from '$lib/types';
 import { buildFtsQuery, escapeLike, now } from './db';
+import { bumpSnapshotVersion } from './snapshot';
 
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 100;
@@ -196,6 +197,9 @@ export async function updateEntry(
   id: string,
   input: UpdateInput
 ): Promise<Entry | null> {
+  const before = await getEntry(db, id, { includeUnapproved: true });
+  if (!before) return null;
+
   const sets: string[] = [];
   const params: unknown[] = [];
 
@@ -216,7 +220,7 @@ export async function updateEntry(
   }
 
   if (sets.length === 0) {
-    return getEntry(db, id, { includeUnapproved: true });
+    return before;
   }
 
   sets.push('updated_at = ?');
@@ -229,12 +233,27 @@ export async function updateEntry(
     .bind(...params)
     .run();
 
-  return getEntry(db, id, { includeUnapproved: true });
+  const after = await getEntry(db, id, { includeUnapproved: true });
+
+  // Bump snapshot version only if the change is visible to the public
+  // snapshot (i.e. it involved an approved row before or after).
+  const publicBefore = before.status === 'approved';
+  const publicAfter = after?.status === 'approved';
+  if (publicBefore || publicAfter) {
+    await bumpSnapshotVersion(db);
+  }
+
+  return after;
 }
 
 export async function deleteEntry(db: D1Database, id: string): Promise<boolean> {
+  const existing = await getEntry(db, id, { includeUnapproved: true });
   const res = await db.prepare('DELETE FROM entries WHERE id = ?').bind(id).run();
-  return (res.meta?.changes ?? 0) > 0;
+  const changed = (res.meta?.changes ?? 0) > 0;
+  if (changed && existing?.status === 'approved') {
+    await bumpSnapshotVersion(db);
+  }
+  return changed;
 }
 
 export async function approveEntry(db: D1Database, id: string) {

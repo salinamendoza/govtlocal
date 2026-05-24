@@ -1,6 +1,7 @@
 <script lang="ts">
   import '../app.css';
   import Header from '$lib/components/Header.svelte';
+  import UpdatesBanner from '$lib/components/UpdatesBanner.svelte';
   import { page } from '$app/stores';
 
   let { children } = $props();
@@ -16,6 +17,7 @@
 
 <div class="min-h-dvh flex flex-col">
   <Header {mode} />
+  <UpdatesBanner />
   <main class="flex-1">
     {@render children()}
   </main>
