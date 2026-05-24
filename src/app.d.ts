@@ -17,6 +17,9 @@ declare global {
         TURNSTILE_SECRET_KEY?: string;
         ADMIN_SECRET?: string;
         IP_HASH_PEPPER?: string;
+        AI?: {
+          run: (model: string, input: unknown) => Promise<unknown>;
+        };
       };
       context: {
         waitUntil(promise: Promise<unknown>): void;

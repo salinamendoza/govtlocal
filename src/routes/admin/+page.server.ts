@@ -1,6 +1,7 @@
 import { fail, type Actions, type PageServerLoad } from '@sveltejs/kit';
 import { getDB } from '$lib/server/db';
-import { listEntries, updateEntry, deleteEntry } from '$lib/server/entries';
+import { createEntry, listEntries, updateEntry, deleteEntry } from '$lib/server/entries';
+import { quickAdd } from '$lib/server/quickAdd';
 import type { EntryStatus, Kind } from '$lib/types';
 
 const VALID_STATUS: readonly (EntryStatus | 'all')[] = [
@@ -53,5 +54,33 @@ export const actions: Actions = {
     if (!id) return fail(400, { error: 'missing id' });
     await deleteEntry(db, id);
     return { ok: true };
+  },
+  quickAdd: async ({ request, platform }) => {
+    const db = getDB(platform);
+    const form = await request.formData();
+    const text = ((form.get('text') as string) ?? '').trim();
+    const kindRaw = (form.get('kind') as string) ?? 'resource';
+    const kind: Kind = kindRaw === 'donation' ? 'donation' : 'resource';
+
+    if (!text) {
+      return fail(400, { quickAdd: { error: 'Paste something first.', text, kind } });
+    }
+    if (!platform?.env.AI) {
+      return fail(503, {
+        quickAdd: {
+          error: 'AI binding not available. Check wrangler.toml.',
+          text,
+          kind
+        }
+      });
+    }
+
+    const result = await quickAdd(platform.env.AI, kind, text);
+    if (!result.ok) {
+      return fail(400, { quickAdd: { error: result.error, text, kind } });
+    }
+
+    const entry = await createEntry(db, result.entry);
+    return { quickAdd: { added: { id: entry.id, title: entry.title, kind } } };
   }
 };
