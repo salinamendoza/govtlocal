@@ -6,7 +6,7 @@ declare global {
       message: string;
     }
     interface Locals {
-      adminEmail?: string;
+      isAdmin?: boolean;
     }
     interface PageData {}
     interface PageState {}
@@ -15,6 +15,7 @@ declare global {
         DB: D1Database;
         RATELIMIT: KVNamespace;
         TURNSTILE_SECRET_KEY?: string;
+        ADMIN_SECRET?: string;
       };
       context: {
         waitUntil(promise: Promise<unknown>): void;
