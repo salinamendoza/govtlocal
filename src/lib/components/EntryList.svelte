@@ -1,7 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { page } from '$app/stores';
   import type { PublicEntry, Kind } from '$lib/types';
+  import * as cache from '$lib/client/entryCache';
   import CategoryChips from './CategoryChips.svelte';
   import SearchInput from './SearchInput.svelte';
   import EntryCard from './EntryCard.svelte';
@@ -17,44 +17,87 @@
   let items = $state<PublicEntry[]>(initialItems);
   let nextCursor = $state<number | null>(initialNextCursor);
   let loading = $state(false);
+  let revalidating = $state(false);
   let error = $state<string | null>(null);
-  let isInitial = true;
 
   const q = $derived($page.url.searchParams.get('q') ?? '');
   const cat = $derived($page.url.searchParams.get('cat'));
 
-  // Refetch whenever q or cat changes. Skip the very first run because
-  // SSR has already populated initialItems.
+  // Seed the cache with whatever the server rendered so we don't immediately
+  // refetch the initial filter on mount.
+  let isInitial = true;
   $effect(() => {
     const _q = q;
     const _cat = cat;
     if (isInitial) {
       isInitial = false;
+      cache.set(cache.makeKey(kind, _cat, _q), {
+        items: initialItems,
+        nextCursor: initialNextCursor,
+        etag: null,
+        fetchedAt: Date.now()
+      });
       return;
     }
-    void refetch(_q, _cat);
+    void load(_q, _cat);
   });
 
-  async function refetch(query: string, category: string | null) {
-    loading = true;
+  function buildUrl(query: string, category: string | null, cursor?: number | null) {
+    const url = new URL('/api/entries', window.location.origin);
+    url.searchParams.set('kind', kind);
+    if (query) url.searchParams.set('q', query);
+    if (category) url.searchParams.set('cat', category);
+    if (cursor != null) url.searchParams.set('cursor', String(cursor));
+    return url;
+  }
+
+  /**
+   * Stale-while-revalidate:
+   * 1. If we have a memoized page for this filter, paint it immediately.
+   *    No network, no spinner — instant on crowded wifi.
+   * 2. Then send `If-None-Match` to confirm. 304 → keep cached data.
+   *    200 → swap in the new payload and update the cache.
+   */
+  async function load(query: string, category: string | null) {
+    const key = cache.makeKey(kind, category, query);
+    const cached = cache.get(key);
+
+    if (cached) {
+      items = cached.items;
+      nextCursor = cached.nextCursor;
+      loading = false;
+      revalidating = true;
+    } else {
+      loading = true;
+      revalidating = false;
+    }
     error = null;
+
     try {
-      const url = new URL('/api/entries', window.location.origin);
-      url.searchParams.set('kind', kind);
-      if (query) url.searchParams.set('q', query);
-      if (category) url.searchParams.set('cat', category);
-      const res = await fetch(url, { headers: { accept: 'application/json' } });
+      const headers: HeadersInit = { accept: 'application/json' };
+      if (cached?.etag) headers['if-none-match'] = cached.etag;
+
+      const res = await fetch(buildUrl(query, category), { headers });
+
+      if (res.status === 304 && cached) {
+        cache.set(key, { ...cached, fetchedAt: Date.now() });
+        return;
+      }
       if (!res.ok) throw new Error(`Search failed (${res.status})`);
+
       const data = (await res.json()) as {
         items: PublicEntry[];
         nextCursor: number | null;
       };
+      const etag = res.headers.get('etag');
       items = data.items;
       nextCursor = data.nextCursor;
+      cache.set(key, { ...data, etag, fetchedAt: Date.now() });
     } catch (e) {
       error = e instanceof Error ? e.message : 'Search failed';
     } finally {
       loading = false;
+      revalidating = false;
     }
   }
 
@@ -62,12 +105,7 @@
     if (nextCursor == null || loading) return;
     loading = true;
     try {
-      const url = new URL('/api/entries', window.location.origin);
-      url.searchParams.set('kind', kind);
-      if (q) url.searchParams.set('q', q);
-      if (cat) url.searchParams.set('cat', cat);
-      url.searchParams.set('cursor', String(nextCursor));
-      const res = await fetch(url);
+      const res = await fetch(buildUrl(q, cat, nextCursor));
       if (!res.ok) throw new Error(`Failed (${res.status})`);
       const data = (await res.json()) as {
         items: PublicEntry[];
@@ -75,6 +113,8 @@
       };
       items = [...items, ...data.items];
       nextCursor = data.nextCursor;
+      // Note: we don't memoize paginated tails — the cache is for the
+      // first page of each filter, where snap-back matters most.
     } catch (e) {
       error = e instanceof Error ? e.message : 'Failed';
     } finally {
@@ -99,11 +139,15 @@
       <p class="mt-1 text-sm text-slate-500">Try clearing the search or category.</p>
     </div>
   {:else}
-    <ul class="grid grid-cols-1 gap-4 md:grid-cols-2" aria-busy={loading}>
+    <ul class="grid grid-cols-1 gap-4 md:grid-cols-2" aria-busy={loading || revalidating}>
       {#each items as entry (entry.id)}
         <li><EntryCard {entry} /></li>
       {/each}
     </ul>
+  {/if}
+
+  {#if revalidating}
+    <p class="text-center text-xs text-slate-400" aria-live="polite">Checking for updates…</p>
   {/if}
 
   {#if nextCursor != null}
