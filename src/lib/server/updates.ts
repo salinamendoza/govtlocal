@@ -1,14 +1,10 @@
 import { nanoid } from 'nanoid';
 import type { D1Database } from '@cloudflare/workers-types';
 import { now } from './db';
+import type { UpdateSeverity } from '$lib/updates';
 
-export type UpdateSeverity = 'info' | 'advisory' | 'urgent' | 'critical';
-export const UPDATE_SEVERITIES: readonly UpdateSeverity[] = [
-  'info',
-  'advisory',
-  'urgent',
-  'critical'
-];
+export type { UpdateSeverity } from '$lib/updates';
+export { UPDATE_SEVERITIES } from '$lib/updates';
 
 export interface UpdateRow {
   id: string;

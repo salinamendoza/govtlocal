@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { PageData, ActionData } from './$types';
-  import { HAZARD_SEVERITIES } from '$lib/server/hazards';
+  import { HAZARD_SEVERITIES } from '$lib/hazards';
   let { data, form }: { data: PageData; form: ActionData } = $props();
   function fmt(t: number) { return new Date(t * 1000).toLocaleString(); }
 </script>

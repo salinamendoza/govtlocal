@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Kind } from '$lib/types';
-  import { HONEYPOT_FIELD } from '$lib/server/abuse';
+  import { HONEYPOT_FIELD } from '$lib/honeypot';
   import Turnstile from './Turnstile.svelte';
 
   interface Props {

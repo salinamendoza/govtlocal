@@ -16,6 +16,7 @@
   }
   let { kind, categories, initialItems }: Props = $props();
 
+  // svelte-ignore state_referenced_locally
   let items = $state<PublicEntry[]>(initialItems);
   let usingLocal = $state(false);
   let error = $state<string | null>(null);

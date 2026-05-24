@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { PageData } from './$types';
-  import { REPORT_STATUSES } from '$lib/server/reportsAdmin';
+  import { REPORT_STATUSES } from '$lib/reportTypes';
   let { data }: { data: PageData } = $props();
   function fmt(t: number) { return new Date(t * 1000).toLocaleString(); }
 
