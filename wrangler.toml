@@ -3,8 +3,11 @@ compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".svelte-kit/cloudflare"
 
-# D1 and KV bindings are configured in the Cloudflare Pages dashboard:
-#   Settings → Functions → Bindings
-# Add:
-#   - D1 database binding: variable name DB → emergency-resources
-#   - KV namespace binding: variable name RATELIMIT → your namespace
+[[d1_databases]]
+binding = "DB"
+database_name = "emergency-resources"
+database_id = "7e596b18-c563-4e29-ac86-c72eb2dfe2f5"
+
+[[kv_namespaces]]
+binding = "RATELIMIT"
+id = "64c575fc1b6e49bd866ab8096324adb2"
