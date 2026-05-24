@@ -6,12 +6,11 @@ import { checkRateLimit } from './ratelimit';
 import { verifyTurnstile } from './turnstile';
 import {
   HONEYPOT_FIELD,
-  MAX_PENDING_PER_IP,
   MAX_SUBMISSION_BYTES,
   clientIp,
   honeypotTripped,
-  payloadTooLarge,
-  pendingCountByIp
+  ipHash,
+  payloadTooLarge
 } from './abuse';
 import { validateEntrySubmission } from './validation';
 import type { Kind } from '$lib/types';
@@ -33,32 +32,21 @@ export async function handleSubmission(event: RequestEvent, kind: Kind) {
     throw redirect(303, '/submit/thanks');
   }
 
+  // 2. KV rate limit — keyed by HMAC(ip, pepper). IP never persisted.
   const ip = clientIp(getClientAddress);
-
-  // 2. KV rate limit
-  if (ip && platform?.env.RATELIMIT) {
-    const rl = await checkRateLimit(platform.env.RATELIMIT, `sub:${ip}`, SUBMISSIONS_PER_HOUR);
+  const ipKey = await ipHash(ip, platform?.env.IP_HASH_PEPPER);
+  if (ipKey && platform?.env.RATELIMIT) {
+    const rl = await checkRateLimit(platform.env.RATELIMIT, `sub:${ipKey}`, SUBMISSIONS_PER_HOUR);
     if (!rl.ok) {
       return fail(429, {
         formError:
-          'Too many submissions from this address. Try again in an hour, or call the hotline.'
+          'Too many submissions from this connection. Try again in an hour, or call the hotline.'
       });
     }
   }
 
-  // 3. Pending queue cap per IP
-  if (ip) {
-    const pending = await pendingCountByIp(db, ip);
-    if (pending >= MAX_PENDING_PER_IP) {
-      return fail(429, {
-        formError: `You already have ${pending} submission(s) waiting for review. Please wait until those are processed.`
-      });
-    }
-  }
-
-  // 4. Turnstile (silently passes if not configured — see verifyTurnstile)
-  const turnstileToken =
-    (form.get('cf-turnstile-response') as string | null) ?? null;
+  // 3. Turnstile (silently passes if not configured — see verifyTurnstile)
+  const turnstileToken = (form.get('cf-turnstile-response') as string | null) ?? null;
   const ts = await verifyTurnstile(turnstileToken, platform?.env.TURNSTILE_SECRET_KEY, ip);
   if (!ts.ok) {
     return fail(403, {
@@ -66,7 +54,7 @@ export async function handleSubmission(event: RequestEvent, kind: Kind) {
     });
   }
 
-  // 5. Field validation
+  // 4. Field validation
   const result = validateEntrySubmission(form, kind);
   if (!result.ok) {
     return fail(400, {
@@ -75,9 +63,6 @@ export async function handleSubmission(event: RequestEvent, kind: Kind) {
     });
   }
 
-  // Entry is created as pending — not visible publicly until admin
-  // approval, which is where the snapshot version bumps from.
-  await createEntry(db, result.value, ip);
-
+  await createEntry(db, result.value);
   throw redirect(303, '/submit/thanks');
 }

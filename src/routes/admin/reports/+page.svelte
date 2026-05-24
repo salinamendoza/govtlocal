@@ -45,7 +45,7 @@
         </form>
       </div>
       <pre class="mt-3 max-w-full overflow-x-auto rounded bg-slate-50 p-3 text-xs">{JSON.stringify(r.payload, null, 2)}</pre>
-      <p class="mt-1 font-mono text-[10px] text-slate-400">id {r.id} · ip {r.submitter_ip ?? '—'}</p>
+      <p class="mt-1 font-mono text-[10px] text-slate-400">id {r.id}</p>
     </article>
   {:else}
     <p class="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-12 text-center text-sm text-slate-500">

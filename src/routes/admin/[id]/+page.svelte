@@ -20,11 +20,10 @@
   <a href="/admin" class="text-sm text-slate-600 hover:underline">← Back to queue</a>
 </div>
 
-<dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-500 md:grid-cols-4">
+<dl class="mt-3 grid grid-cols-1 gap-x-4 gap-y-1 text-xs text-slate-500 md:grid-cols-3">
   <div><dt class="font-semibold">ID</dt><dd class="font-mono">{e.id}</dd></div>
   <div><dt class="font-semibold">Kind</dt><dd>{e.kind}</dd></div>
   <div><dt class="font-semibold">Created</dt><dd>{fmt(e.created_at)}</dd></div>
-  <div><dt class="font-semibold">Submitter IP</dt><dd class="font-mono">{e.submitter_ip ?? '—'}</dd></div>
 </dl>
 
 {#if form?.saved}

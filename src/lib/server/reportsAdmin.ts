@@ -9,7 +9,6 @@ export interface ReportRow {
   payload: string;
   client_timestamp: number | null;
   received_at: number;
-  submitter_ip: string | null;
   status: ReportStatus;
 }
 

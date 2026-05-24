@@ -14,11 +14,6 @@ import { bumpSnapshotVersion } from './snapshot';
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 100;
 
-function stripIp(e: Entry): PublicEntry {
-  const { submitter_ip: _ip, ...rest } = e;
-  return rest;
-}
-
 function normalize(raw: string | null | undefined): string | null {
   if (raw === undefined || raw === null) return null;
   const v = raw.trim();
@@ -83,7 +78,7 @@ export async function listEntries(
 
   const rows = res.results ?? [];
   const hasMore = rows.length > limit;
-  const items = (hasMore ? rows.slice(0, limit) : rows).map(stripIp);
+  const items = hasMore ? rows.slice(0, limit) : rows;
   const nextCursor = hasMore ? items[items.length - 1].created_at : null;
 
   return { items, nextCursor };
@@ -105,8 +100,7 @@ export async function getEntry(
 
 export async function createEntry(
   db: D1Database,
-  input: EntryInput,
-  submitterIp: string | null
+  input: EntryInput
 ): Promise<Entry> {
   const id = nanoid(12);
   const t = now();
@@ -125,7 +119,6 @@ export async function createEntry(
     contact_name: normalize(input.contact_name),
     contact_email: normalize(input.contact_email),
     status: 'pending',
-    submitter_ip: submitterIp,
     created_at: t,
     updated_at: t,
     approved_at: null
@@ -135,9 +128,9 @@ export async function createEntry(
     .prepare(
       `INSERT INTO entries (
         id, kind, category, title, description, url, phone, address, city, zip,
-        contact_name, contact_email, status, submitter_ip,
+        contact_name, contact_email, status,
         created_at, updated_at, approved_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     )
     .bind(
       entry.id,
@@ -153,7 +146,6 @@ export async function createEntry(
       entry.contact_name,
       entry.contact_email,
       entry.status,
-      entry.submitter_ip,
       entry.created_at,
       entry.updated_at,
       entry.approved_at

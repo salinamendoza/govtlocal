@@ -18,13 +18,12 @@ export interface Entry {
   contact_name: string | null;
   contact_email: string | null;
   status: EntryStatus;
-  submitter_ip: string | null;
   created_at: number;
   updated_at: number;
   approved_at: number | null;
 }
 
-export type PublicEntry = Omit<Entry, 'submitter_ip'>;
+export type PublicEntry = Entry;
 
 export interface ListEntriesOptions {
   kind: Kind;
@@ -50,6 +49,6 @@ export interface EntryInput {
 }
 
 export interface ListResult {
-  items: PublicEntry[];
+  items: Entry[];
   nextCursor: number | null;
 }

@@ -28,16 +28,15 @@ function isUuidish(id: string): boolean {
 
 export async function upsertReports(
   db: D1Database,
-  reports: IncomingReport[],
-  submitterIp: string | null
+  reports: IncomingReport[]
 ): Promise<UpsertResult> {
   const accepted: string[] = [];
   const rejected: { id: string; reason: string }[] = [];
   const t = now();
 
   const stmt = db.prepare(
-    `INSERT INTO reports (id, type, payload, client_timestamp, received_at, submitter_ip, status)
-     VALUES (?, ?, ?, ?, ?, ?, 'new')
+    `INSERT INTO reports (id, type, payload, client_timestamp, received_at, status)
+     VALUES (?, ?, ?, ?, ?, 'new')
      ON CONFLICT(id) DO NOTHING`
   );
 
@@ -62,9 +61,7 @@ export async function upsertReports(
       rejected.push({ id: r.id, reason: 'payload too large' });
       continue;
     }
-    ops.push(
-      stmt.bind(r.id, r.type, payloadStr, r.client_timestamp ?? null, t, submitterIp)
-    );
+    ops.push(stmt.bind(r.id, r.type, payloadStr, r.client_timestamp ?? null, t));
     accepted.push(r.id);
   }
 
