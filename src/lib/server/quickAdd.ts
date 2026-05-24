@@ -24,7 +24,7 @@ function systemPrompt(kind: Kind): string {
     '',
     'Fields:',
     '  title           short name, 3-160 chars (required)',
-    '  description     one or two sentences, 10-2000 chars (required). Do NOT repeat the address, phone, capacity, or services in this — those have their own fields.',
+    '  description     one or two sentences, 10-2000 chars (required). Do NOT repeat the address, phone, capacity, or services in this — those have their own fields. BUT YOU MUST PRESERVE: promo codes, voucher codes, redemption codes, coupon codes, expiration dates, deadlines, eligibility rules ("residents only", "ID required"), hours, limits ("2 per person"), and any redemption instructions ("show at counter", "use code at checkout"). These have no other field and are critical — never drop them.',
     `  category        one of exactly: [${cats}] (required)`,
     `  capacity_status one of exactly: [${caps}]. Default to "open" if not stated. Use "limited" for phrases like "near capacity" / "nearing capacity" / "filling up". Use "full" for "full" / "at capacity" / "no more room". Use "closed" for "closed" / "shut down". Use "unknown" only if truly unclear.`,
     `  services        ARRAY of zero or more from exactly: [${services}]. Pick every tag that applies. Empty array if none mentioned. Use "Beds (overnight)" only for overnight, "Day shelter" for day-only. Translate phrases: "shower trailer" -> "Showers", "hot meals" / "food" -> "Meals", "drinking water" -> "Water", "pets welcome" / "pet friendly" -> "Pets allowed", "wheelchair accessible" -> "ADA accessible", "se habla español" -> "Spanish-speaking".`,
