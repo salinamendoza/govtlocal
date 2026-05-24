@@ -77,8 +77,6 @@ export async function quickAdd(
         { role: 'system', content: systemPrompt(kind) },
         { role: 'user', content: trimmed }
       ],
-      // Many CF AI models accept a json response_format hint
-      response_format: { type: 'json_object' },
       max_tokens: 512,
       temperature: 0.1
     })) as { response?: string } | string;
