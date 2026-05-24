@@ -14,6 +14,7 @@ declare global {
       env: {
         DB: D1Database;
         RATELIMIT: KVNamespace;
+        TURNSTILE_SECRET_KEY?: string;
       };
       context: {
         waitUntil(promise: Promise<unknown>): void;
