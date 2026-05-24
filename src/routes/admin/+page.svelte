@@ -1,6 +1,6 @@
 <script lang="ts">
-  import type { PageData } from './$types';
-  let { data }: { data: PageData } = $props();
+  import type { PageData, ActionData } from './$types';
+  let { data, form }: { data: PageData; form: ActionData } = $props();
 
   function fmt(t: number) {
     return new Date(t * 1000).toLocaleString();
@@ -14,13 +14,62 @@
     { value: 'all', label: 'All' }
   ];
 
-  function url(params: Record<string, string>) {
-    const p = new URLSearchParams(params);
-    return `/admin?${p.toString()}`;
-  }
+  // Re-fill the textarea on validation failure so the paste isn't lost.
+  const qaError = $derived(form?.quickAdd?.error);
+  const qaAdded = $derived(form?.quickAdd?.added);
+  const qaText = $derived(form?.quickAdd?.text ?? '');
+  const qaKind = $derived(form?.quickAdd?.kind ?? 'resource');
 </script>
 
 <svelte:head><title>Admin · Queue</title></svelte:head>
+
+<section class="mb-6 rounded-lg border border-slate-200 bg-white p-4">
+  <h2 class="text-base font-semibold text-ink">Quick add</h2>
+  <p class="mt-0.5 text-xs text-slate-500">
+    Paste any sentence or two — name, address, hours, phone, anything. AI fills
+    in the form and drops it in the queue as pending.
+  </p>
+
+  {#if qaAdded}
+    <p class="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+      Added "{qaAdded.title}" as pending.
+      <a href={`/admin/${qaAdded.id}`} class="font-medium underline">Edit</a>
+      or scroll down to approve.
+    </p>
+  {/if}
+  {#if qaError}
+    <p class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+      {qaError}
+    </p>
+  {/if}
+
+  <form method="POST" action="?/quickAdd" class="mt-3 flex flex-col gap-3">
+    <div class="flex gap-2">
+      <label class="flex flex-1 cursor-pointer items-center justify-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium {qaKind === 'resource' ? 'bg-ink text-white border-ink' : 'bg-white text-slate-700'}">
+        <input type="radio" name="kind" value="resource" checked={qaKind === 'resource'} class="sr-only" />
+        Resource
+      </label>
+      <label class="flex flex-1 cursor-pointer items-center justify-center rounded-md border border-slate-200 px-3 py-2 text-sm font-medium {qaKind === 'donation' ? 'bg-ink text-white border-ink' : 'bg-white text-slate-700'}">
+        <input type="radio" name="kind" value="donation" checked={qaKind === 'donation'} class="sr-only" />
+        Donation
+      </label>
+    </div>
+    <textarea
+      name="text"
+      required
+      rows="3"
+      maxlength="4000"
+      placeholder="e.g. Westside Community Center has a shower trailer open 8a-8p at 1234 Magnolia, Garden Grove. Call (714) 555-0123."
+      class="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm"
+    >{qaText}</textarea>
+    <button
+      type="submit"
+      class="rounded-md bg-ink px-4 py-3 text-base font-medium text-white hover:bg-slate-800"
+    >
+      Parse & add to queue
+    </button>
+  </form>
+</section>
 
 <h1 class="text-xl font-semibold text-ink">Submission queue</h1>
 

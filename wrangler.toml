@@ -11,3 +11,6 @@ database_id = "7e596b18-c563-4e29-ac86-c72eb2dfe2f5"
 [[kv_namespaces]]
 binding = "RATELIMIT"
 id = "64c575fc1b6e49bd866ab8096324adb2"
+
+[ai]
+binding = "AI"
