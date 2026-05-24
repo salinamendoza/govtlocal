@@ -7,8 +7,21 @@
   }
   let { entry }: Props = $props();
 
-  const location = $derived(
+  /** Single line: city · zip (used only if no street address). */
+  const cityZip = $derived(
     [entry.city, entry.zip].filter((x): x is string => Boolean(x)).join(' · ')
+  );
+
+  /** Best display string for the address line. Prefers full street. */
+  const displayAddress = $derived(
+    entry.address
+      ? [entry.address, entry.city, entry.zip].filter((x): x is string => Boolean(x)).join(', ')
+      : cityZip
+  );
+
+  /** Universal maps deep link — iOS offers Apple Maps, Android Google Maps. */
+  const mapsUrl = $derived(
+    displayAddress ? `https://maps.google.com/?q=${encodeURIComponent(displayAddress)}` : null
   );
 
   const SERVICE_PREVIEW = 4;
@@ -39,6 +52,30 @@
     </div>
   {/if}
 
+  {#if displayAddress}
+    <a
+      href={mapsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      class="-mx-1 -my-0.5 flex items-start gap-2 rounded-md px-1 py-0.5 text-sm font-medium text-ink hover:bg-slate-50"
+    >
+      <svg
+        class="mt-0.5 h-4 w-4 shrink-0 text-slate-500"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <path
+          fill-rule="evenodd"
+          d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5.69l3.22 3.22a.75.75 0 101.06-1.06l-2.78-2.78V5z"
+          clip-rule="evenodd"
+        />
+        <path d="M10 2a6 6 0 016 6c0 4.5-6 10-6 10S4 12.5 4 8a6 6 0 016-6zm0 8a2 2 0 100-4 2 2 0 000 4z" />
+      </svg>
+      <span class="leading-snug">{displayAddress}</span>
+    </a>
+  {/if}
+
   <p class="clamp-3 text-sm leading-relaxed text-slate-700">{entry.description}</p>
 
   {#if entry.services.length > 0}
@@ -56,18 +93,14 @@
     </ul>
   {/if}
 
-  {#if location}
-    <p class="text-xs font-medium uppercase tracking-wide text-slate-500">{location}</p>
-  {/if}
-
   {#if entry.phone || entry.url}
-    <div class="flex flex-wrap items-center gap-3 pt-1 text-sm">
+    <div class="flex flex-wrap items-center gap-3 pt-1 text-base">
       {#if entry.phone}
         <a
           href="tel:{entry.phone}"
-          class="font-medium text-ink underline-offset-2 hover:underline"
+          class="rounded-md bg-slate-100 px-3 py-1.5 font-semibold text-ink hover:bg-slate-200"
         >
-          {entry.phone}
+          📞 {entry.phone}
         </a>
       {/if}
       {#if entry.url}
@@ -83,3 +116,4 @@
     </div>
   {/if}
 </article>
+
