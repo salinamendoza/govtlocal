@@ -14,11 +14,14 @@ const BULLET_RE = /^\s*(?:[-*•]|\d+[.)])\s+(.*)$/;
 
 /**
  * Split a paste into 1+ individual entries.
- * - Bullets (-, *, •, "1.", "1)") become separate items; any non-bullet
- *   preamble (e.g. "Hotlines:") is prepended to each so the AI keeps
- *   context.
- * - Otherwise, blocks separated by blank lines become items.
- * - Otherwise, the whole text is a single item.
+ *
+ * Only EXPLICIT bullet markers trigger bulk mode — blank lines between
+ * paragraphs in a normal single-entry paste are not a signal. (An
+ * earlier version split on blank lines too, which caused the AI to
+ * hallucinate a second entry from whatever fragment landed in block 2.)
+ *
+ * Non-bullet preamble (e.g. "Hotlines:") is prepended to each bullet
+ * so the AI keeps the surrounding context.
  */
 function splitBulkPaste(text: string): string[] {
   const lines = text.split(/\r?\n/);
@@ -36,8 +39,6 @@ function splitBulkPaste(text: string): string[] {
     const prefix = preamble.join(' ').replace(/[:\-—]\s*$/, '').trim();
     return bullets.map((b) => (prefix ? `${prefix}: ${b}` : b));
   }
-  const blocks = text.split(/\n\s*\n+/).map((b) => b.trim()).filter(Boolean);
-  if (blocks.length >= 2) return blocks;
   return [text.trim()];
 }
 
