@@ -1,5 +1,6 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { PublicEntry } from '$lib/types';
+import { hydrateEntry } from './entries';
 
 export interface HazardZone {
   id: string;
@@ -44,7 +45,8 @@ export async function getSnapshot(db: D1Database): Promise<Snapshot> {
     db
       .prepare(
         `SELECT id, kind, category, title, description, url, phone, address, city, zip,
-                contact_name, contact_email, status, created_at, updated_at, approved_at
+                contact_name, contact_email, status, capacity_status, services,
+                created_at, updated_at, approved_at
          FROM entries WHERE status = 'approved'
          ORDER BY created_at DESC`
       )
@@ -72,7 +74,7 @@ export async function getSnapshot(db: D1Database): Promise<Snapshot> {
       .all<UpdatePost>()
   ]);
 
-  const entries = (entriesRes.results ?? []) as PublicEntry[];
+  const entries: PublicEntry[] = ((entriesRes.results ?? []) as Parameters<typeof hydrateEntry>[0][]).map(hydrateEntry);
   const hazard_zones: HazardZone[] = (hazardsRes.results ?? []).map((r) => ({
     id: r.id,
     severity: r.severity,

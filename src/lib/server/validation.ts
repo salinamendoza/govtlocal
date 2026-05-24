@@ -1,9 +1,14 @@
 import type { EntryInput, Kind } from '$lib/types';
 import { isValidCategory } from '$lib/categories';
+import { CAPACITY_STATUSES, isValidCapacity, type CapacityStatus } from '$lib/capacity';
+import { isValidService, type ServiceTag } from '$lib/services';
 
 export interface FieldErrors {
   [field: string]: string;
 }
+
+/** Form re-population values; services is multi-valued. */
+export type FormValues = Record<string, string | string[]>;
 
 export interface ValidatedEntry {
   ok: true;
@@ -13,7 +18,7 @@ export interface ValidatedEntry {
 export interface InvalidEntry {
   ok: false;
   errors: FieldErrors;
-  values: Record<string, string>;
+  values: FormValues;
 }
 
 const LIMITS = {
@@ -61,7 +66,15 @@ function validPhone(s: string): boolean {
 }
 
 export function validateEntrySubmission(form: FormData, kind: Kind): ValidatedEntry | InvalidEntry {
-  const values = {
+  const rawCapacity = s(form, 'capacity_status');
+  const capacity_status: CapacityStatus = isValidCapacity(rawCapacity) ? rawCapacity : 'unknown';
+
+  const rawServices = form
+    .getAll('services')
+    .filter((v): v is string => typeof v === 'string');
+  const services: ServiceTag[] = rawServices.filter(isValidService);
+
+  const values: FormValues = {
     title: s(form, 'title'),
     description: s(form, 'description'),
     category: s(form, 'category'),
@@ -71,44 +84,63 @@ export function validateEntrySubmission(form: FormData, kind: Kind): ValidatedEn
     phone: s(form, 'phone'),
     address: s(form, 'address'),
     contact_name: s(form, 'contact_name'),
-    contact_email: s(form, 'contact_email')
+    contact_email: s(form, 'contact_email'),
+    capacity_status,
+    services
   };
+
+  const title = values.title as string;
+  const description = values.description as string;
+  const category = values.category as string;
+  const city = values.city as string;
+  const zip = values.zip as string;
+  const url = values.url as string;
+  const phone = values.phone as string;
+  const address = values.address as string;
+  const contact_name = values.contact_name as string;
+  const contact_email = values.contact_email as string;
 
   const errors: FieldErrors = {};
 
-  const titleErr = bounded(values.title, LIMITS.title);
+  const titleErr = bounded(title, LIMITS.title);
   if (titleErr) errors.title = titleErr;
 
-  const descErr = bounded(values.description, LIMITS.description);
+  const descErr = bounded(description, LIMITS.description);
   if (descErr) errors.description = descErr;
 
-  if (!values.category) {
+  if (!category) {
     errors.category = 'Pick a category';
-  } else if (!isValidCategory(kind, values.category)) {
+  } else if (!isValidCategory(kind, category)) {
     errors.category = 'Invalid category';
   }
 
-  if (values.city) {
-    const e = bounded(values.city, LIMITS.city);
+  if (!(CAPACITY_STATUSES as readonly string[]).includes(capacity_status)) {
+    errors.capacity_status = 'Invalid capacity status';
+  }
+
+  // Unknown service tags are silently dropped — the UI only exposes
+  // the fixed SERVICE_TAGS list, so any rejected value here means a
+  // tampered request, not a user error.
+
+  if (city) {
+    const e = bounded(city, LIMITS.city);
     if (e) errors.city = e;
   }
-  if (values.zip) {
-    const e = bounded(values.zip, LIMITS.zip);
+  if (zip) {
+    const e = bounded(zip, LIMITS.zip);
     if (e) errors.zip = e;
   }
-  if (values.url) {
-    if (!validUrl(values.url)) errors.url = 'Must be a valid http(s) URL';
-  }
-  if (values.phone && !validPhone(values.phone)) errors.phone = 'Phone looks invalid';
-  if (values.address) {
-    const e = bounded(values.address, LIMITS.address);
+  if (url && !validUrl(url)) errors.url = 'Must be a valid http(s) URL';
+  if (phone && !validPhone(phone)) errors.phone = 'Phone looks invalid';
+  if (address) {
+    const e = bounded(address, LIMITS.address);
     if (e) errors.address = e;
   }
-  if (values.contact_name) {
-    const e = bounded(values.contact_name, LIMITS.contact_name);
+  if (contact_name) {
+    const e = bounded(contact_name, LIMITS.contact_name);
     if (e) errors.contact_name = e;
   }
-  if (values.contact_email && !validEmail(values.contact_email)) {
+  if (contact_email && !validEmail(contact_email)) {
     errors.contact_email = 'Email looks invalid';
   }
 
@@ -120,16 +152,18 @@ export function validateEntrySubmission(form: FormData, kind: Kind): ValidatedEn
     ok: true,
     value: {
       kind,
-      category: values.category,
-      title: values.title,
-      description: values.description,
-      city: values.city || null,
-      zip: values.zip || null,
-      url: values.url || null,
-      phone: values.phone || null,
-      address: values.address || null,
-      contact_name: values.contact_name || null,
-      contact_email: values.contact_email || null
+      category,
+      title,
+      description,
+      city: city || null,
+      zip: zip || null,
+      url: url || null,
+      phone: phone || null,
+      address: address || null,
+      contact_name: contact_name || null,
+      contact_email: contact_email || null,
+      capacity_status,
+      services
     }
   };
 }

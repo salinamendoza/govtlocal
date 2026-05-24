@@ -1,4 +1,6 @@
 import type { ResourceCategory, DonationCategory } from './categories';
+import type { CapacityStatus } from './capacity';
+import type { ServiceTag } from './services';
 
 export type Kind = 'resource' | 'donation';
 export type EntryStatus = 'pending' | 'approved' | 'rejected' | 'archived';
@@ -18,6 +20,8 @@ export interface Entry {
   contact_name: string | null;
   contact_email: string | null;
   status: EntryStatus;
+  capacity_status: CapacityStatus;
+  services: ServiceTag[];
   created_at: number;
   updated_at: number;
   approved_at: number | null;
@@ -28,6 +32,7 @@ export type PublicEntry = Entry;
 export interface ListEntriesOptions {
   kind: Kind;
   category?: string;
+  service?: string;
   query?: string;
   status?: EntryStatus | 'all';
   limit?: number;
@@ -46,6 +51,8 @@ export interface EntryInput {
   zip?: string | null;
   contact_name?: string | null;
   contact_email?: string | null;
+  capacity_status?: CapacityStatus;
+  services?: ServiceTag[];
 }
 
 export interface ListResult {

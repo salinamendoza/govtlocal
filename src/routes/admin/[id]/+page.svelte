@@ -1,12 +1,15 @@
 <script lang="ts">
   import type { PageData, ActionData } from './$types';
   import { RESOURCE_CATEGORIES, DONATION_CATEGORIES } from '$lib/categories';
+  import { USER_CAPACITY_STATUSES, CAPACITY_LABEL } from '$lib/capacity';
+  import { SERVICE_TAGS } from '$lib/services';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
   const e = $derived(data.entry);
   const categories = $derived(e.kind === 'donation' ? DONATION_CATEGORIES : RESOURCE_CATEGORIES);
   const statuses = ['pending', 'approved', 'rejected', 'archived'] as const;
+  const serviceSet = $derived(new Set<string>(e.services));
 
   function fmt(t: number | null) {
     return t ? new Date(t * 1000).toLocaleString() : '—';
@@ -67,7 +70,37 @@
       <span class="mb-1 block font-medium text-ink">ZIP</span>
       <input name="zip" maxlength="16" value={e.zip ?? ''} class="w-full rounded-md border border-slate-200 px-3 py-2" />
     </label>
+    <label class="text-sm">
+      <span class="mb-1 block font-medium text-ink">Capacity</span>
+      <select name="capacity_status" class="w-full rounded-md border border-slate-200 px-3 py-2">
+        {#each USER_CAPACITY_STATUSES as cap (cap)}
+          <option value={cap} selected={e.capacity_status === cap}>{CAPACITY_LABEL[cap]}</option>
+        {/each}
+        {#if e.capacity_status === 'unknown'}
+          <option value="unknown" selected>Unknown (default)</option>
+        {/if}
+      </select>
+    </label>
   </div>
+
+  <fieldset>
+    <legend class="mb-2 text-sm font-medium text-ink">Services available</legend>
+    <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      {#each SERVICE_TAGS as tag (tag)}
+        <label class="flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm hover:border-slate-300 has-[:checked]:border-ink has-[:checked]:bg-slate-50">
+          <input
+            type="checkbox"
+            name="services"
+            value={tag}
+            checked={serviceSet.has(tag)}
+            class="h-4 w-4 rounded border-slate-300"
+          />
+          <span>{tag}</span>
+        </label>
+      {/each}
+    </div>
+  </fieldset>
+
   <label class="text-sm">
     <span class="mb-1 block font-medium text-ink">Address</span>
     <input name="address" maxlength="200" value={e.address ?? ''} class="w-full rounded-md border border-slate-200 px-3 py-2" />

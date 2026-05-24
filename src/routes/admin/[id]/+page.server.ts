@@ -2,6 +2,8 @@ import { error, fail, redirect, type Actions, type PageServerLoad } from '@svelt
 import { getDB } from '$lib/server/db';
 import { getEntry, updateEntry, deleteEntry } from '$lib/server/entries';
 import { isValidCategory } from '$lib/categories';
+import { isValidCapacity, type CapacityStatus } from '$lib/capacity';
+import { isValidService, type ServiceTag } from '$lib/services';
 import type { EntryStatus, Kind } from '$lib/types';
 
 export const load: PageServerLoad = async ({ params, platform }) => {
@@ -35,6 +37,16 @@ export const actions: Actions = {
       return fail(400, { error: 'Invalid category for this kind' });
     }
 
+    const rawCap = form.get('capacity_status');
+    const capacity_status: CapacityStatus = isValidCapacity(rawCap)
+      ? (rawCap as CapacityStatus)
+      : existing.capacity_status;
+
+    const services: ServiceTag[] = form
+      .getAll('services')
+      .filter((v): v is string => typeof v === 'string')
+      .filter(isValidService);
+
     await updateEntry(db, params.id!, {
       title: (form.get('title') as string) ?? existing.title,
       description: (form.get('description') as string) ?? existing.description,
@@ -46,6 +58,8 @@ export const actions: Actions = {
       phone: strOrNull(form, 'phone'),
       contact_name: strOrNull(form, 'contact_name'),
       contact_email: strOrNull(form, 'contact_email'),
+      capacity_status,
+      services,
       status
     });
 

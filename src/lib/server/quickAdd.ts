@@ -1,5 +1,7 @@
 import type { EntryInput, Kind } from '$lib/types';
 import { categoriesFor, isValidCategory } from '$lib/categories';
+import { CAPACITY_STATUSES, isValidCapacity, type CapacityStatus } from '$lib/capacity';
+import { SERVICE_TAGS, isValidService, type ServiceTag } from '$lib/services';
 
 const MODEL = '@cf/meta/llama-3.1-8b-instruct';
 
@@ -14,24 +16,29 @@ export interface QuickAddFailure {
 
 function systemPrompt(kind: Kind): string {
   const cats = categoriesFor(kind).join(', ');
+  const caps = CAPACITY_STATUSES.join(', ');
+  const services = SERVICE_TAGS.join(', ');
   return [
     'You extract a single structured emergency resource directory entry from free text.',
     'Return ONLY a JSON object — no markdown, no commentary, no code fences.',
     '',
     'Fields:',
-    '  title         short name, 3-160 chars (required)',
-    '  description   one or two sentences, 10-2000 chars (required)',
-    `  category      one of exactly: [${cats}] (required)`,
-    '  city          city name or null',
-    '  zip           postal code or null',
-    '  address       street address or null',
-    '  phone         phone number or null',
-    '  url           http(s) url or null',
-    '  contact_name  person name or null',
-    '  contact_email email address or null',
+    '  title           short name, 3-160 chars (required)',
+    '  description     one or two sentences, 10-2000 chars (required). Do NOT repeat the address, phone, capacity, or services in this — those have their own fields.',
+    `  category        one of exactly: [${cats}] (required)`,
+    `  capacity_status one of exactly: [${caps}]. Default to "open" if not stated. Use "limited" for phrases like "near capacity" / "nearing capacity" / "filling up". Use "full" for "full" / "at capacity" / "no more room". Use "closed" for "closed" / "shut down". Use "unknown" only if truly unclear.`,
+    `  services        ARRAY of zero or more from exactly: [${services}]. Pick every tag that applies. Empty array if none mentioned. Use "Beds (overnight)" only for overnight, "Day shelter" for day-only. Translate phrases: "shower trailer" -> "Showers", "hot meals" / "food" -> "Meals", "drinking water" -> "Water", "pets welcome" / "pet friendly" -> "Pets allowed", "wheelchair accessible" -> "ADA accessible", "se habla español" -> "Spanish-speaking".`,
+    '  city            city name or null',
+    '  zip             postal code or null',
+    '  address         street address or null',
+    '  phone           phone number or null',
+    '  url             http(s) url or null',
+    '  contact_name    person name or null',
+    '  contact_email   email address or null',
     '',
-    `Pick the single best category from the list. If the text says "day shelter not overnight", that's still Shelter.`,
-    'If a field is not present in the text, return null for it (not an empty string).',
+    `Pick the single best category from the list. If the text says "day shelter not overnight", that's still Shelter as the category, with "Day shelter" in services.`,
+    'If a string field is not present in the text, return null (not an empty string).',
+    'If no services are mentioned, return services: [].',
     'Output JSON only. No explanation.'
   ].join('\n');
 }
@@ -121,6 +128,13 @@ export async function quickAdd(
     };
   }
 
+  const rawCap = typeof parsed.capacity_status === 'string' ? parsed.capacity_status : 'open';
+  const capacity_status: CapacityStatus = isValidCapacity(rawCap) ? rawCap : 'unknown';
+
+  const services: ServiceTag[] = Array.isArray(parsed.services)
+    ? parsed.services.filter(isValidService)
+    : [];
+
   return {
     ok: true,
     entry: {
@@ -134,7 +148,9 @@ export async function quickAdd(
       phone: strOrNull(parsed.phone, 40),
       url: strOrNull(parsed.url, 500),
       contact_name: strOrNull(parsed.contact_name, 120),
-      contact_email: strOrNull(parsed.contact_email, 200)
+      contact_email: strOrNull(parsed.contact_email, 200),
+      capacity_status,
+      services
     }
   };
 }
