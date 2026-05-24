@@ -1,12 +1,10 @@
 name = "emergency-resource-directory"
 compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = ".svelte-kit/cloudflare"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "emergency-resources"
-database_id = "REPLACE_AFTER_WRANGLER_D1_CREATE"
-
-[[kv_namespaces]]
-binding = "RATELIMIT"
-id = "REPLACE_AFTER_WRANGLER_KV_CREATE"
+# D1 and KV bindings are configured in the Cloudflare Pages dashboard:
+#   Settings → Functions → Bindings
+# Add:
+#   - D1 database binding: variable name DB → emergency-resources
+#   - KV namespace binding: variable name RATELIMIT → your namespace
