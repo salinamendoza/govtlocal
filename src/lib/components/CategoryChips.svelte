@@ -4,9 +4,18 @@
 
   interface Props {
     categories: readonly string[];
+    /** Categories that currently have at least one approved entry. */
+    activeCategories: readonly string[];
     selected: string | null;
   }
-  let { categories, selected }: Props = $props();
+  let { categories, activeCategories, selected }: Props = $props();
+
+  // Only show a chip if the category is currently populated OR is the
+  // currently-selected filter (so the user can always deselect).
+  const activeSet = $derived(new Set(activeCategories));
+  const visible = $derived(
+    categories.filter((c) => activeSet.has(c) || c === selected)
+  );
 
   function select(cat: string | null) {
     const url = new URL($page.url);
@@ -28,7 +37,7 @@
   >
     All
   </button>
-  {#each categories as cat (cat)}
+  {#each visible as cat (cat)}
     <button
       type="button"
       role="radio"

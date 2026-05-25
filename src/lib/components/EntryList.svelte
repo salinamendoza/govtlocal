@@ -12,9 +12,12 @@
   interface Props {
     kind: Kind;
     categories: readonly string[];
+    /** Categories that currently have at least one approved entry.
+     *  Used to suppress empty filter chips. */
+    activeCategories: readonly string[];
     initialItems: PublicEntry[];
   }
-  let { kind, categories, initialItems }: Props = $props();
+  let { kind, categories, activeCategories, initialItems }: Props = $props();
 
   // svelte-ignore state_referenced_locally
   let items = $state<PublicEntry[]>(initialItems);
@@ -66,7 +69,7 @@
 
 <div class="mx-auto flex max-w-6xl flex-col gap-5 px-4 py-6">
   <SearchInput value={q} placeholder="Search by keyword, place, or need…" />
-  <CategoryChips {categories} selected={cat} />
+  <CategoryChips {categories} {activeCategories} selected={cat} />
 
   {#if !connection.online}
     <p

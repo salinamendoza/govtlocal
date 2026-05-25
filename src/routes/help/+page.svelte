@@ -13,5 +13,6 @@
 <EntryList
   kind="resource"
   categories={RESOURCE_CATEGORIES}
+  activeCategories={data.activeCategories}
   initialItems={data.items}
 />
