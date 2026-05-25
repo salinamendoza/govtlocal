@@ -4,13 +4,11 @@
   import { onMount } from 'svelte';
 
   const TYPES: { value: ReportType; label: string; hint: string }[] = [
-    { value: 'need_help', label: 'I need help', hint: 'Tell volunteers what you need and where you are.' },
-    { value: 'status_report', label: 'Status check-in', hint: 'Let people know you are safe or where you are.' },
     { value: 'resource_full', label: 'Resource is full / closed', hint: 'A shelter, water site, or station is no longer available.' },
     { value: 'other', label: 'Something else', hint: 'Anything that doesn\'t fit above.' }
   ];
 
-  let type = $state<ReportType>('need_help');
+  let type = $state<ReportType>('resource_full');
   let message = $state('');
   let contact = $state('');
   let location = $state('');
@@ -69,10 +67,13 @@
 <svelte:head><title>Send a Report — Emergency Resources</title></svelte:head>
 
 <div class="mx-auto max-w-xl px-4 py-6">
-  <h2 class="text-2xl font-semibold text-ink">Send a Report</h2>
+  <h2 class="text-2xl font-semibold text-ink">Report a problem with this directory</h2>
   <p class="mt-1 text-sm text-slate-600">
-    For volunteers and the operations team. Reports are saved on your device
-    immediately and sent as soon as you have signal.
+    Tell us if a resource is wrong, full, or closed so we can update it.
+    Reports are saved on your device immediately and sent as soon as you have signal.
+  </p>
+  <p class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+    <strong>This is not emergency services.</strong> If you need immediate help, call 911.
   </p>
 
   {#if !connection.online}
