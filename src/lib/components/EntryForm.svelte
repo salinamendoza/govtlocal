@@ -142,6 +142,20 @@
     {#if err('services')}<p class="mt-1 text-xs text-red-700">{err('services')}</p>{/if}
   </fieldset>
 
+  <div>
+    <label for="expires_at" class="mb-1 block text-sm font-medium text-ink">
+      Expires <span class="font-normal text-slate-500">(optional — last day this is valid)</span>
+    </label>
+    <input
+      id="expires_at"
+      name="expires_at"
+      type="date"
+      value={str('expires_at')}
+      class="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm md:w-1/2"
+    />
+    {#if err('expires_at')}<p class="mt-1 text-xs text-red-700">{err('expires_at')}</p>{/if}
+  </div>
+
   <fieldset class="grid grid-cols-1 gap-4 md:grid-cols-2">
     <legend class="sr-only">Location</legend>
     <div>

@@ -83,6 +83,18 @@
     </label>
   </div>
 
+  <label class="text-sm">
+    <span class="mb-1 block font-medium text-ink">
+      Expires <span class="font-normal text-slate-500">(optional)</span>
+    </span>
+    <input
+      name="expires_at"
+      type="date"
+      value={e.expires_at ?? ''}
+      class="w-full rounded-md border border-slate-200 px-3 py-2 md:w-1/2"
+    />
+  </label>
+
   <fieldset>
     <legend class="mb-2 text-sm font-medium text-ink">Services available</legend>
     <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">

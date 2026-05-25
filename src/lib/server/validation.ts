@@ -2,6 +2,7 @@ import type { EntryInput, Kind } from '$lib/types';
 import { isValidCategory } from '$lib/categories';
 import { CAPACITY_STATUSES, isValidCapacity, type CapacityStatus } from '$lib/capacity';
 import { isValidService, type ServiceTag } from '$lib/services';
+import { isValidDateString } from '$lib/expiration';
 
 export interface FieldErrors {
   [field: string]: string;
@@ -74,6 +75,9 @@ export function validateEntrySubmission(form: FormData, kind: Kind): ValidatedEn
     .filter((v): v is string => typeof v === 'string');
   const services: ServiceTag[] = rawServices.filter(isValidService);
 
+  const rawExpires = s(form, 'expires_at');
+  const expires_at: string | null = isValidDateString(rawExpires) ? rawExpires : null;
+
   const values: FormValues = {
     title: s(form, 'title'),
     description: s(form, 'description'),
@@ -86,7 +90,8 @@ export function validateEntrySubmission(form: FormData, kind: Kind): ValidatedEn
     contact_name: s(form, 'contact_name'),
     contact_email: s(form, 'contact_email'),
     capacity_status,
-    services
+    services,
+    expires_at: expires_at ?? ''
   };
 
   const title = values.title as string;
@@ -163,7 +168,8 @@ export function validateEntrySubmission(form: FormData, kind: Kind): ValidatedEn
       contact_name: contact_name || null,
       contact_email: contact_email || null,
       capacity_status,
-      services
+      services,
+      expires_at
     }
   };
 }

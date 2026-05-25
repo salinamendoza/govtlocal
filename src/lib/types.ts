@@ -22,6 +22,7 @@ export interface Entry {
   status: EntryStatus;
   capacity_status: CapacityStatus;
   services: ServiceTag[];
+  expires_at: string | null;
   created_at: number;
   updated_at: number;
   approved_at: number | null;
@@ -35,6 +36,10 @@ export interface ListEntriesOptions {
   service?: string;
   query?: string;
   status?: EntryStatus | 'all';
+  /** Admin view: include rows whose expires_at is in the past. Default false. */
+  includeExpired?: boolean;
+  /** Admin filter: only rows that are approved AND expired. */
+  onlyExpired?: boolean;
   limit?: number;
   cursor?: number | null; // created_at of last item
 }
@@ -53,6 +58,7 @@ export interface EntryInput {
   contact_email?: string | null;
   capacity_status?: CapacityStatus;
   services?: ServiceTag[];
+  expires_at?: string | null;
 }
 
 export interface ListResult {
