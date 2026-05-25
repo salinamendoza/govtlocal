@@ -2,8 +2,9 @@ import { fail, type Actions, type PageServerLoad } from '@sveltejs/kit';
 import { getDB } from '$lib/server/db';
 import { createEntry, listEntries, updateEntry, deleteEntry } from '$lib/server/entries';
 import { quickAdd } from '$lib/server/quickAdd';
+import { validateEntrySubmission } from '$lib/server/validation';
 import { isValidCapacity, type CapacityStatus } from '$lib/capacity';
-import type { EntryStatus, Kind } from '$lib/types';
+import type { EntryInput, EntryStatus, Kind } from '$lib/types';
 
 const VALID_STATUS: readonly (EntryStatus | 'all')[] = [
   'pending', 'approved', 'rejected', 'archived', 'all'
@@ -16,9 +17,7 @@ const BULLET_RE = /^\s*(?:[-*•]|\d+[.)])\s+(.*)$/;
  * Split a paste into 1+ individual entries.
  *
  * Only EXPLICIT bullet markers trigger bulk mode — blank lines between
- * paragraphs in a normal single-entry paste are not a signal. (An
- * earlier version split on blank lines too, which caused the AI to
- * hallucinate a second entry from whatever fragment landed in block 2.)
+ * paragraphs in a normal single-entry paste are not a signal.
  *
  * Non-bullet preamble (e.g. "Hotlines:") is prepended to each bullet
  * so the AI keeps the surrounding context.
@@ -40,6 +39,17 @@ function splitBulkPaste(text: string): string[] {
     return bullets.map((b) => (prefix ? `${prefix}: ${b}` : b));
   }
   return [text.trim()];
+}
+
+/**
+ * A draft is the AI's extraction PLUS the original source text. The
+ * client persists drafts in localStorage and shows them to the admin
+ * one at a time for review and edit before any DB write happens.
+ */
+export interface ParsedDraft {
+  source: string;
+  parsed: EntryInput | null;
+  error?: string;
 }
 
 export const load: PageServerLoad = async ({ url, platform }) => {
@@ -99,19 +109,24 @@ export const actions: Actions = {
     await updateEntry(db, id, { capacity_status: cap as CapacityStatus });
     return { ok: true };
   },
-  quickAdd: async ({ request, platform }) => {
-    const db = getDB(platform);
+
+  /**
+   * Parse-only. Runs AI extraction on the pasted text (or each bullet)
+   * and returns the drafts WITHOUT writing anything to the DB. The
+   * client then walks the admin through each draft to confirm/edit/save.
+   */
+  parseQuick: async ({ request, platform }) => {
     const form = await request.formData();
     const text = ((form.get('text') as string) ?? '').trim();
     const kindRaw = (form.get('kind') as string) ?? 'resource';
     const kind: Kind = kindRaw === 'donation' ? 'donation' : 'resource';
 
     if (!text) {
-      return fail(400, { quickAdd: { error: 'Paste something first.', text, kind } });
+      return fail(400, { parseQuick: { error: 'Paste something first.', text, kind } });
     }
     if (!platform?.env.AI) {
       return fail(503, {
-        quickAdd: {
+        parseQuick: {
           error: 'AI binding not available. Check wrangler.toml.',
           text,
           kind
@@ -122,7 +137,7 @@ export const actions: Actions = {
     const items = splitBulkPaste(text);
     if (items.length > MAX_BULK_ITEMS) {
       return fail(400, {
-        quickAdd: {
+        parseQuick: {
           error: `That looks like ${items.length} entries — please paste in batches of ${MAX_BULK_ITEMS} or fewer.`,
           text,
           kind
@@ -130,38 +145,50 @@ export const actions: Actions = {
       });
     }
 
-    // Single-entry path (most common). Preserves the original UX where
-    // the success message links straight to the new entry's edit page.
-    if (items.length === 1) {
-      const result = await quickAdd(platform.env.AI, kind, items[0]);
-      if (!result.ok) {
-        return fail(400, { quickAdd: { error: result.error, text, kind } });
-      }
-      const entry = await createEntry(db, result.entry);
-      return { quickAdd: { added: [{ id: entry.id, title: entry.title }], kind } };
-    }
-
-    // Bulk path. Run AI calls in parallel — small N, safe under any
-    // reasonable Workers AI rate cap.
     const results = await Promise.all(
       items.map((it) => quickAdd(platform.env.AI!, kind, it))
     );
 
-    const added: { id: string; title: string }[] = [];
-    const failures: { source: string; error: string }[] = [];
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i];
-      if (r.ok) {
-        const entry = await createEntry(db, r.entry);
-        added.push({ id: entry.id, title: entry.title });
-      } else {
-        failures.push({
-          source: items[i].slice(0, 80),
-          error: r.error
-        });
-      }
+    const drafts: ParsedDraft[] = results.map((r, i) => ({
+      source: items[i],
+      parsed: r.ok ? r.entry : null,
+      error: r.ok ? undefined : r.error
+    }));
+
+    return { parseQuick: { drafts, kind } };
+  },
+
+  /**
+   * The admin reviewed (and possibly edited) the form fields. Validate
+   * exactly like a public submission would and create the entry.
+   * No AI involvement at this step — the values are whatever the admin
+   * confirmed.
+   */
+  commitDraft: async ({ request, platform }) => {
+    const db = getDB(platform);
+    const form = await request.formData();
+    const kindRaw = (form.get('kind') as string) ?? 'resource';
+    const kind: Kind = kindRaw === 'donation' ? 'donation' : 'resource';
+
+    const result = validateEntrySubmission(form, kind);
+    if (!result.ok) {
+      return fail(400, {
+        commitDraft: {
+          errors: result.errors,
+          values: result.values,
+          kind
+        }
+      });
     }
 
-    return { quickAdd: { added, failures, kind, bulk: true } };
+    // Strip the EntryInput honeypot-shaped values to just what createEntry needs.
+    const input: EntryInput = result.value;
+    const entry = await createEntry(db, input);
+    return {
+      commitDraft: {
+        committed: { id: entry.id, title: entry.title },
+        kind
+      }
+    };
   }
 };
