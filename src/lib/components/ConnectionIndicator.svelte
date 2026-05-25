@@ -25,7 +25,7 @@
 </script>
 
 <div
-  class="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600"
+  class="inline-flex items-center gap-1.5 text-xs text-slate-600 sm:gap-2 sm:rounded-md sm:border sm:border-slate-200 sm:bg-white sm:px-2.5 sm:py-1"
   title={label}
   aria-live="polite"
 >
