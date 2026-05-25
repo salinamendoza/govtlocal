@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import type { PublicEntry } from '$lib/types';
 import { hydrateEntry } from './entries';
+import { todayISO } from '$lib/expiration';
 
 export interface HazardZone {
   id: string;
@@ -45,11 +46,14 @@ export async function getSnapshot(db: D1Database): Promise<Snapshot> {
     db
       .prepare(
         `SELECT id, kind, category, title, description, url, phone, address, city, zip,
-                contact_name, contact_email, status, capacity_status, services,
+                contact_name, contact_email, status, capacity_status, services, expires_at,
                 created_at, updated_at, approved_at
-         FROM entries WHERE status = 'approved'
+         FROM entries
+         WHERE status = 'approved'
+           AND (expires_at IS NULL OR expires_at >= ?)
          ORDER BY created_at DESC`
       )
+      .bind(todayISO())
       .all(),
     db
       .prepare(

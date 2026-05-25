@@ -4,6 +4,7 @@ import { getEntry, updateEntry, deleteEntry } from '$lib/server/entries';
 import { isValidCategory } from '$lib/categories';
 import { isValidCapacity, type CapacityStatus } from '$lib/capacity';
 import { isValidService, type ServiceTag } from '$lib/services';
+import { isValidDateString } from '$lib/expiration';
 import type { EntryStatus, Kind } from '$lib/types';
 
 export const load: PageServerLoad = async ({ params, platform }) => {
@@ -47,6 +48,14 @@ export const actions: Actions = {
       .filter((v): v is string => typeof v === 'string')
       .filter(isValidService);
 
+    const rawExpires = form.get('expires_at');
+    const expires_at: string | null =
+      typeof rawExpires === 'string' && rawExpires.trim() === ''
+        ? null
+        : isValidDateString(rawExpires)
+          ? (rawExpires as string)
+          : existing.expires_at;
+
     await updateEntry(db, params.id!, {
       title: (form.get('title') as string) ?? existing.title,
       description: (form.get('description') as string) ?? existing.description,
@@ -60,6 +69,7 @@ export const actions: Actions = {
       contact_email: strOrNull(form, 'contact_email'),
       capacity_status,
       services,
+      expires_at,
       status
     });
 

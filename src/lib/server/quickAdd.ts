@@ -2,6 +2,7 @@ import type { EntryInput, Kind } from '$lib/types';
 import { categoriesFor, isValidCategory } from '$lib/categories';
 import { CAPACITY_STATUSES, isValidCapacity, type CapacityStatus } from '$lib/capacity';
 import { SERVICE_TAGS, isValidService, type ServiceTag } from '$lib/services';
+import { isValidDateString, todayISO } from '$lib/expiration';
 
 const MODEL = '@cf/meta/llama-3.1-8b-instruct';
 
@@ -18,7 +19,9 @@ function systemPrompt(kind: Kind): string {
   const cats = categoriesFor(kind).join(', ');
   const caps = CAPACITY_STATUSES.join(', ');
   const services = SERVICE_TAGS.join(', ');
+  const today = todayISO();
   return [
+    `Today is ${today}.`,
     'You extract a single structured emergency resource directory entry from free text.',
     'Return ONLY a JSON object — no markdown, no commentary, no code fences.',
     '',
@@ -28,6 +31,7 @@ function systemPrompt(kind: Kind): string {
     `  category        one of exactly: [${cats}] (required)`,
     `  capacity_status one of exactly: [${caps}]. Default to "open" if not stated. Use "limited" for phrases like "near capacity" / "nearing capacity" / "filling up". Use "full" for "full" / "at capacity" / "no more room". Use "closed" for "closed" / "shut down". Use "unknown" only if truly unclear.`,
     `  services        ARRAY of zero or more from exactly: [${services}]. Pick every tag that applies. Empty array if none mentioned. Use "Beds (overnight)" only for overnight, "Day shelter" for day-only. Translate phrases: "shower trailer" -> "Showers", "hot meals" / "food" -> "Meals", "drinking water" -> "Water", "pets welcome" / "pet friendly" -> "Pets allowed", "wheelchair accessible" -> "ADA accessible", "se habla español" -> "Spanish-speaking".`,
+    `  expires_at      String in "YYYY-MM-DD" format, or null. The LAST DAY the offer is valid. Resolve relative dates against today (${today}): "valid through Monday" -> the next Monday's date, "expires May 30" -> "2026-05-30", "this week" -> this Sunday, "today only" -> today's date. Return null if no expiration is mentioned.`,
     '  city            city name or null',
     '  zip             postal code or null',
     '  address         street address or null',
@@ -135,6 +139,8 @@ export async function quickAdd(
     ? parsed.services.filter(isValidService)
     : [];
 
+  const expires_at = isValidDateString(parsed.expires_at) ? parsed.expires_at : null;
+
   return {
     ok: true,
     entry: {
@@ -150,7 +156,8 @@ export async function quickAdd(
       contact_name: strOrNull(parsed.contact_name, 120),
       contact_email: strOrNull(parsed.contact_email, 200),
       capacity_status,
-      services
+      services,
+      expires_at
     }
   };
 }

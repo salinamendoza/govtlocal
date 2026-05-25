@@ -6,8 +6,10 @@ import { validateEntrySubmission } from '$lib/server/validation';
 import { isValidCapacity, type CapacityStatus } from '$lib/capacity';
 import type { EntryInput, EntryStatus, Kind } from '$lib/types';
 
-const VALID_STATUS: readonly (EntryStatus | 'all')[] = [
-  'pending', 'approved', 'rejected', 'archived', 'all'
+/** "expired" is a synthetic filter: approved rows whose expires_at is past. */
+type AdminStatusFilter = EntryStatus | 'all' | 'expired';
+const VALID_STATUS: readonly AdminStatusFilter[] = [
+  'pending', 'approved', 'rejected', 'archived', 'all', 'expired'
 ];
 
 const MAX_BULK_ITEMS = 20;
@@ -56,14 +58,22 @@ export const load: PageServerLoad = async ({ url, platform }) => {
   const db = getDB(platform);
   const rawKind = url.searchParams.get('kind');
   const kind: Kind = rawKind === 'donation' ? 'donation' : 'resource';
-  const rawStatus = url.searchParams.get('status') as EntryStatus | 'all' | null;
-  const status = rawStatus && VALID_STATUS.includes(rawStatus) ? rawStatus : 'pending';
+  const rawStatus = url.searchParams.get('status') as AdminStatusFilter | null;
+  const status: AdminStatusFilter =
+    rawStatus && VALID_STATUS.includes(rawStatus) ? rawStatus : 'pending';
   const query = url.searchParams.get('q') ?? undefined;
+
+  // Admin views always include expired rows. The "expired" status filter
+  // additionally restricts to only-expired (and treats them as approved).
+  const listStatus: EntryStatus | 'all' =
+    status === 'expired' ? 'approved' : status === 'all' ? 'all' : status;
 
   const { items } = await listEntries(db, {
     kind,
-    status,
+    status: listStatus,
     query,
+    includeExpired: true,
+    onlyExpired: status === 'expired',
     limit: 100
   });
 

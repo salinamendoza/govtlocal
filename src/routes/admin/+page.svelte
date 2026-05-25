@@ -12,6 +12,7 @@
     type CapacityStatus
   } from '$lib/capacity';
   import { SERVICE_TAGS } from '$lib/services';
+  import { expirationLabel, isExpired } from '$lib/expiration';
 
   let { data, form }: { data: PageData; form: ActionData } = $props();
 
@@ -24,6 +25,7 @@
     { value: 'approved', label: 'Approved' },
     { value: 'rejected', label: 'Rejected' },
     { value: 'archived', label: 'Archived' },
+    { value: 'expired', label: 'Expired' },
     { value: 'all', label: 'All' }
   ];
 
@@ -233,6 +235,18 @@
           {#if fieldErr('description')}<p class="mt-1 text-xs text-red-700">{fieldErr('description')}</p>{/if}
         </label>
 
+        <label class="text-sm">
+          <span class="mb-1 block font-medium text-ink">
+            Expires <span class="font-normal text-slate-500">(optional — last day this is valid)</span>
+          </span>
+          <input
+            name="expires_at"
+            type="date"
+            value={current.parsed.expires_at ?? ''}
+            class="w-full rounded-md border border-slate-200 px-3 py-2 md:w-1/2"
+          />
+        </label>
+
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <label class="text-sm">
             <span class="mb-1 block font-medium text-ink">Category</span>
@@ -416,6 +430,7 @@
         <th class="px-3 py-2">Category</th>
         <th class="px-3 py-2">Capacity</th>
         <th class="px-3 py-2">Location</th>
+        <th class="px-3 py-2">Expires</th>
         <th class="px-3 py-2">Submitted</th>
         <th class="px-3 py-2">Status</th>
         <th class="px-3 py-2 text-right">Actions</th>
@@ -452,6 +467,15 @@
           <td class="px-3 py-2 text-xs text-slate-600">
             {[e.city, e.zip].filter(Boolean).join(' · ') || '—'}
           </td>
+          <td class="px-3 py-2 text-xs">
+            {#if e.expires_at}
+              <span class="rounded px-1.5 py-0.5 font-medium {isExpired(e.expires_at) ? 'bg-red-100 text-red-800' : 'text-slate-600'}">
+                {expirationLabel(e.expires_at)}
+              </span>
+            {:else}
+              <span class="text-slate-400">—</span>
+            {/if}
+          </td>
           <td class="whitespace-nowrap px-3 py-2 text-xs text-slate-500">{fmt(e.created_at)}</td>
           <td class="px-3 py-2 text-xs">
             <span class="rounded bg-slate-100 px-2 py-0.5 font-medium">{e.status}</span>
@@ -481,7 +505,7 @@
           </td>
         </tr>
       {:else}
-        <tr><td colspan="7" class="px-3 py-8 text-center text-sm text-slate-500">Nothing here.</td></tr>
+        <tr><td colspan="8" class="px-3 py-8 text-center text-sm text-slate-500">Nothing here.</td></tr>
       {/each}
     </tbody>
   </table>

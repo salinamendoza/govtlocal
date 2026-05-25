@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { PublicEntry } from '$lib/types';
   import { CAPACITY_CHIP, CAPACITY_LABEL } from '$lib/capacity';
+  import { expirationLabel, isExpired, daysUntil } from '$lib/expiration';
 
   interface Props {
     entry: PublicEntry;
@@ -34,6 +35,19 @@
   const visibleServices = $derived(entry.services.slice(0, SERVICE_PREVIEW));
   const extraServices = $derived(Math.max(0, entry.services.length - SERVICE_PREVIEW));
   const showCapacity = $derived(entry.capacity_status !== 'unknown');
+
+  const expLabel = $derived(expirationLabel(entry.expires_at));
+  const expClass = $derived(
+    !entry.expires_at
+      ? ''
+      : isExpired(entry.expires_at)
+        ? 'bg-red-100 text-red-800 border-red-200'
+        : daysUntil(entry.expires_at) <= 1
+          ? 'bg-red-50 text-red-700 border-red-200'
+          : daysUntil(entry.expires_at) <= 6
+            ? 'bg-amber-50 text-amber-900 border-amber-200'
+            : 'bg-slate-50 text-slate-700 border-slate-200'
+  );
 </script>
 
 <article
@@ -48,13 +62,22 @@
     </span>
   </div>
 
-  {#if showCapacity}
-    <div>
-      <span
-        class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold {CAPACITY_CHIP[entry.capacity_status]}"
-      >
-        {CAPACITY_LABEL[entry.capacity_status]}
-      </span>
+  {#if showCapacity || expLabel}
+    <div class="flex flex-wrap items-center gap-1.5">
+      {#if showCapacity}
+        <span
+          class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold {CAPACITY_CHIP[entry.capacity_status]}"
+        >
+          {CAPACITY_LABEL[entry.capacity_status]}
+        </span>
+      {/if}
+      {#if expLabel}
+        <span
+          class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-semibold {expClass}"
+        >
+          {expLabel}
+        </span>
+      {/if}
     </div>
   {/if}
 

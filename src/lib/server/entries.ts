@@ -10,6 +10,7 @@ import type {
 import type { CapacityStatus } from '$lib/capacity';
 import { isValidCapacity } from '$lib/capacity';
 import { parseServices, serializeServices, type ServiceTag } from '$lib/services';
+import { isValidDateString, todayISO } from '$lib/expiration';
 import { buildFtsQuery, escapeLike, now } from './db';
 import { bumpSnapshotVersion } from './snapshot';
 
@@ -18,13 +19,14 @@ const MAX_LIMIT = 100;
 
 const ENTRY_COLS = `
   id, kind, category, title, description, url, phone, address, city, zip,
-  contact_name, contact_email, status, capacity_status, services,
+  contact_name, contact_email, status, capacity_status, services, expires_at,
   created_at, updated_at, approved_at
 `;
 
-interface RawEntry extends Omit<Entry, 'services' | 'capacity_status'> {
+interface RawEntry extends Omit<Entry, 'services' | 'capacity_status' | 'expires_at'> {
   services: string;
   capacity_status: string;
+  expires_at: string | null;
 }
 
 /** Convert a raw D1 row into a typed Entry. */
@@ -34,7 +36,8 @@ export function hydrateEntry(row: RawEntry): Entry {
     capacity_status: isValidCapacity(row.capacity_status)
       ? (row.capacity_status as CapacityStatus)
       : 'unknown',
-    services: parseServices(row.services)
+    services: parseServices(row.services),
+    expires_at: isValidDateString(row.expires_at) ? row.expires_at : null
   };
 }
 
@@ -74,6 +77,16 @@ export async function listEntries(
     // quoted tag finds exact matches without false positives on prefixes.
     where.push(`e.services LIKE ? ESCAPE '\\'`);
     params.push(`%"${escapeLike(opts.service)}"%`);
+  }
+
+  if (opts.onlyExpired) {
+    where.push('e.expires_at IS NOT NULL AND e.expires_at < ?');
+    params.push(todayISO());
+  } else if (!opts.includeExpired) {
+    // Public default: hide already-expired rows. NULL expires_at means
+    // no expiration and is kept.
+    where.push('(e.expires_at IS NULL OR e.expires_at >= ?)');
+    params.push(todayISO());
   }
 
   if (useFts) {
@@ -138,6 +151,7 @@ export async function createEntry(
 
   const capacity: CapacityStatus = input.capacity_status ?? 'unknown';
   const servicesJson = serializeServices(input.services ?? []);
+  const expires_at = isValidDateString(input.expires_at) ? input.expires_at : null;
 
   const entry: Entry = {
     id,
@@ -155,6 +169,7 @@ export async function createEntry(
     status: 'pending',
     capacity_status: capacity,
     services: parseServices(servicesJson),
+    expires_at,
     created_at: t,
     updated_at: t,
     approved_at: null
@@ -164,9 +179,9 @@ export async function createEntry(
     .prepare(
       `INSERT INTO entries (
         id, kind, category, title, description, url, phone, address, city, zip,
-        contact_name, contact_email, status, capacity_status, services,
+        contact_name, contact_email, status, capacity_status, services, expires_at,
         created_at, updated_at, approved_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     )
     .bind(
       entry.id,
@@ -184,6 +199,7 @@ export async function createEntry(
       entry.status,
       entry.capacity_status,
       servicesJson,
+      entry.expires_at,
       entry.created_at,
       entry.updated_at,
       entry.approved_at
@@ -222,6 +238,7 @@ export interface UpdateInput {
   status?: EntryStatus;
   capacity_status?: CapacityStatus;
   services?: ServiceTag[];
+  expires_at?: string | null;
 }
 
 export async function updateEntry(
@@ -250,6 +267,11 @@ export async function updateEntry(
   if (input.services !== undefined) {
     sets.push('services = ?');
     params.push(serializeServices(input.services));
+  }
+
+  if (input.expires_at !== undefined) {
+    sets.push('expires_at = ?');
+    params.push(isValidDateString(input.expires_at) ? input.expires_at : null);
   }
 
   if (input.status !== undefined) {
