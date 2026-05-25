@@ -43,6 +43,9 @@
   interface Draft {
     source: string;
     parsed: EntryInput | null;
+    /** When set, the draft updates an existing entry instead of creating. */
+    updateId?: string;
+    updateTitle?: string;
     error?: string;
   }
   const DRAFT_KEY = 'qa_drafts_v1';
@@ -196,6 +199,16 @@
         </p>
       {/if}
 
+      {#if current.updateId}
+        <p class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <span class="font-semibold">Updating existing entry:</span>
+          {current.updateTitle ?? current.parsed.title}
+          <span class="mt-1 block text-xs opacity-90">
+            The form below merges this entry's current values with what was extracted from your paste.
+          </span>
+        </p>
+      {/if}
+
       <form
         method="POST"
         action="?/commitDraft"
@@ -203,6 +216,9 @@
         class="mt-3 flex flex-col gap-4"
       >
         <input type="hidden" name="kind" value={reviewKind} />
+        {#if current.updateId}
+          <input type="hidden" name="updateId" value={current.updateId} />
+        {/if}
 
         <label class="text-sm">
           <span class="mb-1 block font-medium text-ink">
@@ -330,7 +346,7 @@
             type="submit"
             class="flex-1 rounded-md bg-ink px-4 py-3 text-base font-medium text-white hover:bg-slate-800"
           >
-            Save to queue
+            {current.updateId ? 'Save changes' : 'Save to queue'}
           </button>
           <button
             type="button"

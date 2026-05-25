@@ -6,32 +6,54 @@ import { isValidDateString, todayISO } from '$lib/expiration';
 
 const MODEL = '@cf/meta/llama-3.1-8b-instruct';
 
+export interface ExistingEntryHint {
+  id: string;
+  title: string;
+  city: string | null;
+}
+
 export interface QuickAddResult {
   ok: true;
   entry: EntryInput;
+  /** Set when the AI matched the paste to an existing entry. */
+  updateId?: string;
 }
 export interface QuickAddFailure {
   ok: false;
   error: string;
 }
 
-function systemPrompt(kind: Kind): string {
+function systemPrompt(kind: Kind, existing: ExistingEntryHint[]): string {
   const cats = categoriesFor(kind).join(', ');
   const caps = CAPACITY_STATUSES.join(', ');
   const services = SERVICE_TAGS.join(', ');
   const today = todayISO();
+  const existingBlock =
+    existing.length === 0
+      ? 'No existing entries — this is always a new entry.'
+      : [
+          'Existing entries you might be UPDATING instead of creating a new one:',
+          ...existing.map(
+            (e) => `  ${e.id} | ${e.title}${e.city ? ` (${e.city})` : ''}`
+          ),
+          '',
+          'If the user\'s text clearly refers to one of these (by name and location), set updateId to that entry\'s id. Otherwise set updateId to null and treat it as a new entry.'
+        ].join('\n');
   return [
     `Today is ${today}.`,
-    'You extract a single structured emergency resource directory entry from free text.',
+    'You extract a single structured emergency resource directory entry from free text, OR identify it as an update to an existing one.',
     'Return ONLY a JSON object — no markdown, no commentary, no code fences.',
     '',
+    existingBlock,
+    '',
     'Fields:',
+    '  updateId        id of the existing entry being updated, or null. Must be one of the ids listed above, exactly.',
     '  title           short name, 3-160 chars (required)',
     '  description     one or two sentences, 10-2000 chars (required). Do NOT repeat the address, phone, capacity, or services in this — those have their own fields. BUT YOU MUST PRESERVE: promo codes, voucher codes, redemption codes, coupon codes, expiration dates, deadlines, eligibility rules ("residents only", "ID required"), hours, limits ("2 per person"), and any redemption instructions ("show at counter", "use code at checkout"). These have no other field and are critical — never drop them.',
     `  category        one of exactly: [${cats}] (required)`,
     `  capacity_status one of exactly: [${caps}]. Default to "open" if not stated. Use "limited" for phrases like "near capacity" / "nearing capacity" / "filling up". Use "full" for "full" / "at capacity" / "no more room". Use "closed" for "closed" / "shut down". Use "unknown" only if truly unclear.`,
     `  services        ARRAY of zero or more from exactly: [${services}]. Pick every tag that applies. Empty array if none mentioned. Use "Beds (overnight)" only for overnight, "Day shelter" for day-only. Translate phrases: "shower trailer" -> "Showers", "hot meals" / "food" -> "Meals", "drinking water" -> "Water", "pets welcome" / "pet friendly" -> "Pets allowed", "wheelchair accessible" -> "ADA accessible", "se habla español" -> "Spanish-speaking".`,
-    `  expires_at      String in "YYYY-MM-DD" format, or null. The LAST DAY the offer is valid. Resolve relative dates against today (${today}): "valid through Monday" -> the next Monday's date, "expires May 30" -> "2026-05-30", "this week" -> this Sunday, "today only" -> today's date. Return null if no expiration is mentioned.`,
+    `  expires_at      String in "YYYY-MM-DD" format, or null. The LAST DAY the offer is valid. Resolve relative dates against today (${today}). Return null if no expiration is mentioned.`,
     '  city            city name or null',
     '  zip             postal code or null',
     '  address         street address or null',
@@ -73,7 +95,8 @@ function strOrNull(v: unknown, max: number): string | null {
 export async function quickAdd(
   ai: NonNullable<App.Platform['env']['AI']>,
   kind: Kind,
-  text: string
+  text: string,
+  existing: ExistingEntryHint[] = []
 ): Promise<QuickAddResult | QuickAddFailure> {
   const trimmed = text.trim();
   if (!trimmed) return { ok: false, error: 'Paste something to parse.' };
@@ -85,7 +108,7 @@ export async function quickAdd(
   try {
     const response = (await ai.run(MODEL, {
       messages: [
-        { role: 'system', content: systemPrompt(kind) },
+        { role: 'system', content: systemPrompt(kind, existing) },
         { role: 'user', content: trimmed }
       ],
       max_tokens: 512,
@@ -141,8 +164,15 @@ export async function quickAdd(
 
   const expires_at = isValidDateString(parsed.expires_at) ? parsed.expires_at : null;
 
+  // updateId must be one of the ids we passed in — protect against
+  // the model inventing one.
+  const validIds = new Set(existing.map((e) => e.id));
+  const rawId = typeof parsed.updateId === 'string' ? parsed.updateId : null;
+  const updateId = rawId && validIds.has(rawId) ? rawId : undefined;
+
   return {
     ok: true,
+    updateId,
     entry: {
       kind,
       title,
