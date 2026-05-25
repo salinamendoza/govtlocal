@@ -324,6 +324,25 @@ export async function approveEntry(db: D1Database, id: string) {
   return updateEntry(db, id, { status: 'approved' });
 }
 
+/**
+ * Categories that currently have at least one publicly-visible entry
+ * for the given kind. Used to suppress dead filter chips.
+ */
+export async function getActiveCategories(
+  db: D1Database,
+  kind: 'resource' | 'donation'
+): Promise<string[]> {
+  const res = await db
+    .prepare(
+      `SELECT DISTINCT category FROM entries
+       WHERE kind = ? AND status = 'approved'
+         AND (expires_at IS NULL OR expires_at >= ?)`
+    )
+    .bind(kind, todayISO())
+    .all<{ category: string }>();
+  return (res.results ?? []).map((r) => r.category);
+}
+
 export async function rejectEntry(db: D1Database, id: string) {
   return updateEntry(db, id, { status: 'rejected' });
 }

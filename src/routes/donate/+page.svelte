@@ -13,5 +13,6 @@
 <EntryList
   kind="donation"
   categories={DONATION_CATEGORIES}
+  activeCategories={data.activeCategories}
   initialItems={data.items}
 />
