@@ -1,7 +1,7 @@
 import { fail, type Actions, type PageServerLoad } from '@sveltejs/kit';
 import { getDB } from '$lib/server/db';
-import { createEntry, listEntries, updateEntry, deleteEntry } from '$lib/server/entries';
-import { quickAdd } from '$lib/server/quickAdd';
+import { createEntry, getEntry, listEntries, updateEntry, deleteEntry } from '$lib/server/entries';
+import { quickAdd, type ExistingEntryHint } from '$lib/server/quickAdd';
 import { validateEntrySubmission } from '$lib/server/validation';
 import { isValidCapacity, type CapacityStatus } from '$lib/capacity';
 import type { EntryInput, EntryStatus, Kind } from '$lib/types';
@@ -51,8 +51,14 @@ function splitBulkPaste(text: string): string[] {
 export interface ParsedDraft {
   source: string;
   parsed: EntryInput | null;
+  /** When set, the draft is an UPDATE to an existing entry rather than a create. */
+  updateId?: string;
+  /** Display-only hint of what's being updated. */
+  updateTitle?: string;
   error?: string;
 }
+
+const MAX_EXISTING_HINTS = 100;
 
 export const load: PageServerLoad = async ({ url, platform }) => {
   const db = getDB(platform);
@@ -126,6 +132,7 @@ export const actions: Actions = {
    * client then walks the admin through each draft to confirm/edit/save.
    */
   parseQuick: async ({ request, platform }) => {
+    const db = getDB(platform);
     const form = await request.formData();
     const text = ((form.get('text') as string) ?? '').trim();
     const kindRaw = (form.get('kind') as string) ?? 'resource';
@@ -155,15 +162,63 @@ export const actions: Actions = {
       });
     }
 
+    // Hand the AI the list of existing entries (this kind, approved or
+    // pending) so it can detect "this is an UPDATE to that one" instead
+    // of always creating new.
+    const { items: existingEntries } = await listEntries(db, {
+      kind,
+      status: 'all',
+      includeExpired: true,
+      limit: MAX_EXISTING_HINTS
+    });
+    const hintMap = new Map(existingEntries.map((e) => [e.id, e]));
+    const hints: ExistingEntryHint[] = existingEntries.map((e) => ({
+      id: e.id,
+      title: e.title,
+      city: e.city
+    }));
+
     const results = await Promise.all(
-      items.map((it) => quickAdd(platform.env.AI!, kind, it))
+      items.map((it) => quickAdd(platform.env.AI!, kind, it, hints))
     );
 
-    const drafts: ParsedDraft[] = results.map((r, i) => ({
-      source: items[i],
-      parsed: r.ok ? r.entry : null,
-      error: r.ok ? undefined : r.error
-    }));
+    const drafts: ParsedDraft[] = results.map((r, i) => {
+      if (!r.ok) {
+        return { source: items[i], parsed: null, error: r.error };
+      }
+      // If the AI matched an existing entry, merge: start from the
+      // existing values and overlay anything the AI extracted as non-null.
+      if (r.updateId) {
+        const base = hintMap.get(r.updateId);
+        if (base) {
+          const merged: EntryInput = {
+            kind: base.kind,
+            title: r.entry.title || base.title,
+            description: r.entry.description || base.description,
+            category: r.entry.category || base.category,
+            capacity_status: r.entry.capacity_status ?? base.capacity_status,
+            services: Array.from(
+              new Set([...(base.services ?? []), ...(r.entry.services ?? [])])
+            ),
+            expires_at: r.entry.expires_at ?? base.expires_at,
+            city: r.entry.city ?? base.city,
+            zip: r.entry.zip ?? base.zip,
+            address: r.entry.address ?? base.address,
+            phone: r.entry.phone ?? base.phone,
+            url: r.entry.url ?? base.url,
+            contact_name: r.entry.contact_name ?? base.contact_name,
+            contact_email: r.entry.contact_email ?? base.contact_email
+          };
+          return {
+            source: items[i],
+            parsed: merged,
+            updateId: r.updateId,
+            updateTitle: base.title
+          };
+        }
+      }
+      return { source: items[i], parsed: r.entry };
+    });
 
     return { parseQuick: { drafts, kind } };
   },
@@ -179,6 +234,7 @@ export const actions: Actions = {
     const form = await request.formData();
     const kindRaw = (form.get('kind') as string) ?? 'resource';
     const kind: Kind = kindRaw === 'donation' ? 'donation' : 'resource';
+    const updateId = (form.get('updateId') as string | null) || null;
 
     const result = validateEntrySubmission(form, kind);
     if (!result.ok) {
@@ -191,8 +247,43 @@ export const actions: Actions = {
       });
     }
 
-    // Strip the EntryInput honeypot-shaped values to just what createEntry needs.
     const input: EntryInput = result.value;
+
+    if (updateId) {
+      const existing = await getEntry(db, updateId, { includeUnapproved: true });
+      if (!existing) {
+        return fail(404, {
+          commitDraft: {
+            errors: { _form: 'Entry to update no longer exists.' },
+            values: result.values,
+            kind
+          }
+        });
+      }
+      const updated = await updateEntry(db, updateId, {
+        title: input.title,
+        description: input.description,
+        category: input.category,
+        capacity_status: input.capacity_status,
+        services: input.services,
+        expires_at: input.expires_at,
+        city: input.city,
+        zip: input.zip,
+        address: input.address,
+        phone: input.phone,
+        url: input.url,
+        contact_name: input.contact_name,
+        contact_email: input.contact_email
+      });
+      return {
+        commitDraft: {
+          committed: { id: updateId, title: updated?.title ?? input.title },
+          updated: true,
+          kind
+        }
+      };
+    }
+
     const entry = await createEntry(db, input);
     return {
       commitDraft: {
